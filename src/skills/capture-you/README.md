@@ -2,11 +2,6 @@
 
 > AI 增强型随手捕捉系统 — 你的第二大脑
 
-[![Node.js >= 18.0.0](https://img.shields.io/badge/Node.js-%3E%3D%2018.0.0-green.svg)](https://nodejs.org/)
-[![Platform: macOS](https://img.shields.io/badge/Platform-macOS-blue.svg)](https://www.apple.com/macos/)
-
----
-
 ## 产品定位
 
 **知己** 是一款 AI 增强型的个人知识捕捉与管理系统。它能够帮助你：
@@ -29,7 +24,13 @@
 | **性格画像分析** | 基于捕捉记录分析你的思维模式和行为习惯 |
 | **周报/月报生成** | 自动汇总一段时间内的记录，生成结构化报告 |
 | **本地优先** | 所有数据存储在本地，尊重隐私 |
-| **TDD 开发** | 完善的测试覆盖，保证稳定可靠 |
+
+---
+
+## 界面预览
+
+![初始化引导](docs/images/demo-setup.png)
+![记录统计](docs/images/demo-stat.png)
 
 ---
 
@@ -43,169 +44,48 @@
 
 ---
 
-## 环境要求
+## 快速上手
 
-- **Node.js** >= 18.0.0
-- **npm** >= 9.0.0
-- **macOS** (用于 Apple Reminders 集成)
-- **better-sqlite3** (自动安装)
+在 Claude Code 中直接说话就能用：
+
+```
+/capture-you init        # 首次使用，初始化你的画像
+/capture-you             # 开始捕捉，说出你的想法
+/capture-you todos       # 查看所有待办
+/capture-you review week  # 生成周报
+/capture-you profile     # 查看性格画像
+```
 
 ---
 
 ## 安装
 
-### 方式一：快速安装
+### 方式一：Claude Code 用户（推荐）
 
 ```bash
-# 1. 进入 skill 目录
-cd src/skills/capture-you
+# 1. 复制 skill 到你的 Claude Code 配置目录
+cp -r src/skills/capture-you ~/.claude/skills/capture-you
 
-# 2. 安装依赖
-npm install
-
-# 3. 初始化数据库
-npm run init
-
-# 4. 验证安装（运行测试）
-npm test
+# 2. 重启 Claude Code
+# 3. 输入 /capture-you 开始使用
 ```
 
-### 方式二：自动安装脚本
+### 方式二：OpenClaw 用户
 
-```bash
-# 检查并安装所有依赖
-./scripts/install.sh
-```
-
-`install.sh` 会自动检查：
-- Node.js 版本
-- npm 版本
-- 缺失的 npm 包并自动安装
-- 创建必要的目录结构
-
----
-
-## 快速使用
-
-### 记录新内容
-
-```bash
-# 基本记录
-node capture.js "给张总发邮件确认合同"
-
-# 指定类型（idea/todo/project/reference/note）
-node capture.js "todo:完成项目文档" --type todo
-
-# 指定到期时间
-node capture.js "todo:提交方案" --due "2026-04-15"
-```
-
-### 搜索记录
-
-```bash
-# 关键词搜索
-node query.js "张总"
-
-# 按类型筛选
-node query.js --type todo
-
-# 按日期范围筛选
-node query.js --from 2026-04-01 --to 2026-04-30
-```
-
-### 查看统计
-
-```bash
-node stat.js
-```
-
-### 生成报告
-
-```bash
-# 生成周报
-node review.js week
-
-# 生成月报
-node review.js month
-```
-
-### 查看性格画像
-
-```bash
-node profile.js
-```
-
----
-
-## 配置文件
-
-编辑 `config.yaml` 自定义行为：
-
-```yaml
-capture-you:
-  data_dir: ~/.capture-you
-  memory_dir: memory
-
-  reminders:
-    list_name: Inbox
-    enabled: true
-
-  ai:
-    enabled: true
-    model: claude-sonnet-4-20250514
-```
+同上，将 skill 复制到对应的 skills 目录。
 
 ---
 
 ## 数据存储
 
-| 类型 | 路径 | 说明 |
-|------|------|------|
-| Markdown | `memory/capture-log.md` | 人类可读的记录文件 |
-| SQLite | `sqlite/capture.db` | 结构化查询数据库 |
-| 配置 | `config.yaml` | 用户配置 |
-| 日志 | `~/.capture-you/logs/` | 运行日志 |
+- **本地优先** — 所有数据存储在你本地，不上云
+- **双轨备份** — Markdown + SQLite，双重保障
+- **隐私安全** — 你的数据只有你能访问
 
 ---
 
-## 目录结构
-
-```
-capture-you/
-├── SKILL.md           # Skill 定义文档
-├── capture.js         # 记录解析主逻辑
-├── review.js          # 周报/月报生成
-├── profile.js         # 性格画像分析
-├── stat.js            # 统计信息
-├── query.js           # 搜索查询
-├── db.js              # SQLite 操作
-├── config.yaml        # 配置文件
-├── package.json       # npm 配置
-├── jest.config.js     # 测试配置
-├── scripts/
-│   ├── init-db.sh     # 初始化数据库
-│   └── check-todos.js # 待办过期检查
-└── tests/             # 单元测试
-    ├── setup.js
-    ├── capture.test.js
-    ├── db.test.js
-    ├── review.test.js
-    ├── profile.test.js
-    └── query.test.js
-```
-
----
-
-## 同步到 .claude
-
-```bash
-# 从项目根目录
-cd ../..
-./scripts/sync-skills.sh capture-you
-```
-
----
+PRs welcome 💻
 
 ## License
 
-MIT
+© windknow

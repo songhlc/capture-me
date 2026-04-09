@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# User data (auto-generated at runtime)
+memory/
+
 # Database (keep directory, ignore files)
 sqlite/
 

@@ -56,6 +56,28 @@ function initDb() {
     );
   `);
 
+  // 创建 projects 表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      project_name TEXT NOT NULL,
+      iteration TEXT,
+      assignees TEXT,
+      status TEXT DEFAULT 'active',
+      overall_progress REAL DEFAULT 0,
+      deadline TEXT,
+      last_note_id TEXT,
+      progress_detail TEXT,
+      blockers TEXT,
+      last_updated TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(project_name);
+    CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+    CREATE INDEX IF NOT EXISTS idx_projects_iteration ON projects(iteration);
+  `);
+
   db.close();
   console.log('✓ 数据库初始化完成:', DB_PATH);
 }
@@ -163,6 +185,187 @@ function getAllPersonality() {
   return results;
 }
 
+// ─── Projects CRUD ──────────────────────────────────────────
+
+function generateProjectId(projectName, iteration) {
+  const str = `${projectName}-${iteration || 'default'}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return 'proj-' + Math.abs(hash).toString(16);
+}
+
+function insertProject(project) {
+  const db = new Database(DB_PATH);
+  const id = project.id || generateProjectId(project.project_name, project.iteration);
+
+  const stmt = db.prepare(`
+    INSERT INTO projects (id, project_name, iteration, assignees, status, overall_progress, deadline, last_note_id, progress_detail, blockers, last_updated)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    id,
+    project.project_name,
+    project.iteration || null,
+    project.assignees ? JSON.stringify(project.assignees) : null,
+    project.status || 'active',
+    project.overall_progress || 0,
+    project.deadline || null,
+    project.last_note_id || null,
+    project.progress_detail ? JSON.stringify(project.progress_detail) : null,
+    project.blockers ? JSON.stringify(project.blockers) : null,
+    new Date().toISOString()
+  );
+
+  db.close();
+  return id;
+}
+
+function getProject(id) {
+  const db = new Database(DB_PATH, { readonly: true });
+  const stmt = db.prepare('SELECT * FROM projects WHERE id = ?');
+  const project = stmt.get(id);
+  db.close();
+
+  if (project && project.assignees) {
+    try {
+      project.assignees = JSON.parse(project.assignees);
+    } catch (e) {}
+  }
+  if (project && project.progress_detail) {
+    try {
+      project.progress_detail = JSON.parse(project.progress_detail);
+    } catch (e) {}
+  }
+  if (project && project.blockers) {
+    try {
+      project.blockers = JSON.parse(project.blockers);
+    } catch (e) {}
+  }
+
+  return project;
+}
+
+function getProjects(status) {
+  const db = new Database(DB_PATH, { readonly: true });
+  let stmt;
+  if (status && status !== 'all') {
+    stmt = db.prepare('SELECT * FROM projects WHERE status = ? ORDER BY last_updated DESC');
+    var results = stmt.all(status);
+  } else {
+    stmt = db.prepare('SELECT * FROM projects ORDER BY last_updated DESC');
+    results = stmt.all();
+  }
+  db.close();
+
+  // Parse JSON fields
+  for (const project of results) {
+    if (project.assignees) {
+      try {
+        project.assignees = JSON.parse(project.assignees);
+      } catch (e) {}
+    }
+    if (project.progress_detail) {
+      try {
+        project.progress_detail = JSON.parse(project.progress_detail);
+      } catch (e) {}
+    }
+    if (project.blockers) {
+      try {
+        project.blockers = JSON.parse(project.blockers);
+      } catch (e) {}
+    }
+  }
+
+  return results;
+}
+
+function updateProjectStatus(id, status) {
+  const db = new Database(DB_PATH);
+  const stmt = db.prepare('UPDATE projects SET status = ?, last_updated = ? WHERE id = ?');
+  stmt.run(status, new Date().toISOString(), id);
+  db.close();
+}
+
+function updateProjectFromNote(projectData, noteId) {
+  const db = new Database(DB_PATH);
+
+  // Check if project exists
+  const existing = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectData.id);
+
+  if (existing) {
+    // Update existing project
+    const stmt = db.prepare(`
+      UPDATE projects SET
+        iteration = ?,
+        assignees = ?,
+        status = ?,
+        overall_progress = ?,
+        deadline = ?,
+        last_note_id = ?,
+        progress_detail = ?,
+        blockers = ?,
+        last_updated = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(
+      projectData.iteration || null,
+      projectData.assignees ? JSON.stringify(projectData.assignees) : null,
+      projectData.status || 'active',
+      projectData.overall_progress || 0,
+      projectData.deadline || null,
+      noteId,
+      projectData.progress_detail ? JSON.stringify(projectData.progress_detail) : null,
+      projectData.blockers ? JSON.stringify(projectData.blockers) : null,
+      new Date().toISOString(),
+      projectData.id
+    );
+  } else {
+    // Insert new project
+    const stmt = db.prepare(`
+      INSERT INTO projects (id, project_name, iteration, assignees, status, overall_progress, deadline, last_note_id, progress_detail, blockers, last_updated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      projectData.id,
+      projectData.project_name,
+      projectData.iteration || null,
+      projectData.assignees ? JSON.stringify(projectData.assignees) : null,
+      projectData.status || 'active',
+      projectData.overall_progress || 0,
+      projectData.deadline || null,
+      noteId,
+      projectData.progress_detail ? JSON.stringify(projectData.progress_detail) : null,
+      projectData.blockers ? JSON.stringify(projectData.blockers) : null,
+      new Date().toISOString()
+    );
+  }
+
+  db.close();
+}
+
+function calculateProjectProgress(tasks) {
+  if (!tasks || tasks.length === 0) return 0;
+
+  let totalProgress = 0;
+  let totalWeight = 0;
+
+  for (const task of tasks) {
+    const weight = task.total || 1;
+    const progress = task.current || 0;
+    totalProgress += (progress / (task.total || 1)) * weight;
+    totalWeight += weight;
+  }
+
+  return totalWeight > 0 ? Math.round((totalProgress / totalWeight) * 100) : 0;
+}
+
 // CLI
 if (require.main === module) {
   const cmd = process.argv[2];
@@ -198,4 +401,12 @@ module.exports = {
   updatePersonality,
   getPersonality,
   getAllPersonality,
+  // Projects
+  generateProjectId,
+  insertProject,
+  getProject,
+  getProjects,
+  updateProjectStatus,
+  updateProjectFromNote,
+  calculateProjectProgress,
 };

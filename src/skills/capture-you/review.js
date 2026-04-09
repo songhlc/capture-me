@@ -8,8 +8,8 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const MEMORY_DIR = path.join(__dirname, '../../../memory');
-const DB_PATH = path.join(MEMORY_DIR, '../.claude/skills/capture-you/sqlite/capture.db');
+const MEMORY_DIR = path.join(__dirname, 'memory');
+const DB_PATH = path.join(__dirname, 'sqlite', 'capture.db');
 
 function ensureDb() {
   if (!fs.existsSync(DB_PATH)) {

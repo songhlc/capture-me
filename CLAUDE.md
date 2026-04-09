@@ -1,18 +1,31 @@
 # Project Rules
 
-## 源码优先原则
+## 源码优先原则（强制）
 
-- **src 目录**是源码权威来源
-- .claude 目录下的代码是 src 目录的镜像/输出位置
-- 修改代码时，以 src 目录为准
-- 修改完成后，自动同步到 .claude 目录
+**任何代码修改必须遵循以下流程，绝不允许直接修改 .claude 目录：**
 
-## 同步规则
+1. **修改源码**：所有代码修改必须在 `src/` 目录下进行
+2. **同步发布**：修改完成后，手动将改动同步到目标位置
+3. **禁止直接修改**：严禁直接修改 `.claude` 目录下的任何文件
 
-当修改 src 目录下的文件后，相应文件应同步到：
-- `.claude/skills/capture-you/` — capture-you 技能文件
+违反此规则视为严重错误。
 
-同步操作由 Claude Code 自动执行。
+## 源码目录结构
+
+| 源码位置 | 目标位置 | 说明 |
+|----------|----------|------|
+| `src/skills/capture-you/` | `~/.claude/skills/capture-you/` | capture-you 技能源码 |
+
+## 同步操作
+
+修改 `src/` 目录下的文件后，必须执行同步命令：
+
+```bash
+# 示例：同步 capture-you 相关文件
+cp src/skills/capture-you/*.js ~/.claude/skills/capture-you/
+```
+
+同步是**强制的**，未同步的改动不会被执行。
 
 ## TDD 开发原则
 

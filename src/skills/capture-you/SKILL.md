@@ -1,58 +1,76 @@
 ---
 name: capture-you
-description: 随手捕捉 → AI 解析 → 自动归类 → 双存储（Markdown + SQLite）→ Apple Reminders 定时提醒 + 性格画像
+description: 习惯养成 → 定期复盘 → 自我提升：自然语言随手记，AI 解析存储，成长追踪
 user-invocable: true
-argument-hint: "[init|note|query|todos|done|review|profile|stat] [内容]"
+argument-hint: "[init|note|query|review|profile|stat|projects] [内容]"
 ---
 
-# Capture-You — AI 增强型随手捕捉系统
+
+# 知己 / Capture-You — AI 增强型习惯养成与复盘提升系统
 
 ## 系统架构
 
 ```
 ┌─────────────────────────────────────────────┐
-│  用户入口（自然语言 note 命令）               │
-│  note 今天跟张总确认合同，下周签约            │1
+│  用户入口（自然语言）                        │
+│  /capture-you 今天跟张总确认合同，下周签约   │
 └──────────────┬──────────────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────────────┐
-│  AI 理解层（模型无关，可插拔）                │
-│  · 意图识别（记录/查询/复盘/待办）            │
-│  · 实体提取（人名/时间/地点/邮箱/金额）       │
-│  · 标签生成                                  │
-│  · 摘要压缩                                  │
+│  随手记存储层                               │
+│  · 接收原始输入                             │
+│  · 写入 SQLite + Markdown                  │
+│  · 输出解析指令                            │
 └──────────────┬──────────────────────────────┘
                │
-        ┌──────┴──────┐
-        ▼             ▼
-┌──────────────┐  ┌──────────────┐
-│ Markdown 文件 │  │ SQLite 索引  │
-│ 原始内容存储  │  │ 加速检索     │
-└──────────────┘  └──────────────┘
+               ▼
+┌─────────────────────────────────────────────┐
+│  大模型解析（上下文）                       │
+│  · 意图识别（记录/查询/复盘/待办）          │
+│  · 实体提取（人名/邮箱/金额/地点/时间）   │
+│  · 标签生成 + 摘要                         │
+│  · 更新 SQLite 记录                         │
+└─────────────────────────────────────────────┘
 ```
 
+## 核心设计原则
+
+**存储与解析分离**：
+- `capture.js` 只负责接收原始输入和存储
+- 解析工作由大模型在对话上下文中完成
+- 不依赖外部 API，不使用正则匹配做"AI解析"
+
+**工作流程**：
+1. 用户输入 `/capture-you <内容>`
+2. capture.js 存储原始内容，输出结构化解析指令
+3. 大模型看到指令，理解用户意图，提取结构化信息
+4. 大模型回复 JSON 格式的解析结果
+5. 数据被结构化存储，支持查询和复盘
+
 ## 数据存储
+
+> **随手记**（notes）：SQLite + Markdown 双写，SQLite 为查询主库，Markdown 为可读备份。
+> **项目**（projects）：SQLite 唯一数据源；Markdown 为 `export` 导出视图，非写入源。
 
 ### 目录结构
 
 ```
-~/.capture-you/           # 或 $PROJECT_ROOT/memory/
-├── notes/                # 原始 Markdown 文件
-│   ├── 2026/
-│   │   ├── 04/
-│   │   │   ├── 2026-04-09.md
-│   │   │   └── 2026-04-10.md
+~/.claude/skills/capture-you/   # 技能根目录
+├── memory/                    # 用户数据（升级时保留）
+│   ├── capture-log.md       # 随手记原始记录
+│   └── promises.md          # 承诺与待办追踪
 ├── sqlite/
-│   └── capture.db       # SQLite 数据库
-└── config.yaml          # 用户配置、分类体系
+│   └── capture.db           # SQLite 数据库
+├── templates/               # 模板文件
+└── [*.js]                  # 功能脚本
 
-# 兼容现有 memory/ 结构
+# memory/ 目录兼容旧版结构
 memory/
-├── capture-log.md       # 随手记原始记录
-├── promises.md          # 承诺与待办追踪
-├── tag-taxonomy.md      # 标签分类体系
-└── personality.md        # 性格画像
+├── capture-log.md           # 随手记原始记录
+├── promises.md             # 承诺与待办追踪
+├── tag-taxonomy.md         # 标签分类体系
+└── personality.md          # 性格画像
 ```
 
 ### SQLite 表结构
@@ -63,14 +81,29 @@ CREATE TABLE notes (
   date TEXT,              -- 2026-04-09
   time TEXT,              -- 14:32
   raw_text TEXT,          -- 原始输入
-  ai_summary TEXT,        -- AI 生成的摘要
+  ai_summary TEXT,        -- 大模型生成的摘要
   category TEXT,          -- work/life/health/idea/todo/goal
-  tags TEXT,              -- JSON 数组：["张总","合同","签约"]
-  extracted_entities TEXT, -- JSON：{people:[], dates:[], emails:[]}
+  tags TEXT,              -- JSON 数组：["@work", "@people/张总"]
+  extracted_entities TEXT, -- JSON：{people:[], emails:[], amounts:[], locations:[], times:[]}
   is_todo INTEGER,        -- 是否含待办
   todo_due TEXT,          -- 截止日期
   todo_done INTEGER,      -- 是否完成
-  source TEXT             -- cli/feishu/capture-you
+  source TEXT             -- cli/capture-you
+);
+
+CREATE TABLE projects (
+  id TEXT PRIMARY KEY,
+  project_name TEXT,
+  iteration TEXT,
+  assignees TEXT,          -- JSON
+  status TEXT,            -- active/paused/blocked/completed
+  overall_progress REAL,
+  deadline TEXT,
+  last_note_id TEXT,
+  progress_detail TEXT,   -- JSON
+  blockers TEXT,          -- JSON
+  last_updated TEXT,
+  created_at TEXT
 );
 
 CREATE TABLE personality (
@@ -113,28 +146,29 @@ AI摘要：近期身体状态不佳
 
 | 命令 | 功能 |
 |------|------|
-| `init` | 初始化用户画像（首次使用引导） |
-| `note <内容>` | 自然语言记录，AI 实时处理 |
+| `init` | 初始化用户画像（多步问卷引导） |
+| `note <内容>` | 自然语言记录，规则实时处理 |
 | `query <关键词>` | 搜索历史笔记 |
-| `todos` | 查看所有待办 |
-| `done <id>` | 标记待办完成 |
+| `query todos` | 查看所有待办 |
 | `review week` | 生成周报 |
 | `review month` | 生成月报 |
 | `profile` | 查看个人性格画像 |
 | `stat` | 查看记录统计 |
+| `projects [状态]` | 查看项目列表（active/paused/all） |
+| `projects export` | 导出项目列表到 Markdown |
 
 ---
 
 ## AI 处理流程
 
-### 记录时（note）
+### 记录时（capture）
 
 1. 接收原始文本
-2. 判断意图：记录 / 待办 / 查询 / 复盘
-3. 若是记录 → 实体提取 + 标签生成 + 摘要 + 识别是否含待办
-4. 写入 Markdown + 写入 SQLite
-5. 若含待办 → 写入 Apple Reminders（可配）
-6. 返回确认（简短）
+2. 写入 Markdown + SQLite（原始内容）
+3. 输出结构化解析指令
+4. 大模型在上下文中解析，生成 JSON 结果
+5. 大模型回复解析结果
+6. （可选）若含待办 → 写入 Apple Reminders
 
 ### 复盘时（review）
 
@@ -169,16 +203,38 @@ AI摘要：近期身体状态不佳
 
 ## 实体提取
 
-从文本中自动提取：
+大模型在上下文中自动提取：
 
 | 实体类型 | 识别示例 | 提取结果 |
 |----------|----------|----------|
-| 人名 | "张总说"、"和李总开会" | ["张总", "李总"] |
-| 时间 | "下周一"、"周五下午3点" | ["2026-04-13 09:00"] |
-| 日期 | "4月15日" | ["2026-04-15"] |
-| 邮箱 | "zhang@xxx.com" | ["zhang@xxx.com"] |
-| 金额 | "合同款50万" | ["500000"] |
-| 地点 | "在国贸开会" | ["国贸"] |
+| 人名 | "给张总发"、"和李总开会" | ["张总", "李总"] |
+| 邮箱 | "联系 zhang@xxx.com" | ["zhang@xxx.com"] |
+| 金额 | "合同款50万"、"项目预算500万" | ["50万", "500万"] |
+| 地点 | "在国贸开会"、"去望京" | ["国贸", "望京"] |
+| 时间 | "下午3点"、"14:30" | ["下午3点", "14:30"] |
+| 日期/时间 | "明天"、"周五"、"下周一" | 转换为具体日期时间 |
+| 截止日期 | "周五前完成" | 自动识别为待办截止时间 |
+
+**解析示例**：
+```
+输入：今天给张总发邮件确认合同，邮箱zhang@company.com，合同款50万，下周一在国贸开会
+
+大模型解析：
+{
+  "summary": "确认合同细节，约定下周签约",
+  "category": "work",
+  "tags": ["@work", "@people/张总", "@deadline/周一"],
+  "entities": {
+    "people": ["张总"],
+    "emails": ["zhang@company.com"],
+    "amounts": ["50万"],
+    "locations": ["国贸"],
+    "times": ["下周一"]
+  },
+  "is_todo": true,
+  "todo_due": "下周一"
+}
+```
 
 ---
 
@@ -241,7 +297,7 @@ AI摘要：近期身体状态不佳
 
 ```bash
 # 创建提醒
-reminders add "给某总发邮件确认合同" --list "Inbox" --date "2026-04-13 09:00"
+reminders add "给某总发邮件确认合同" --list "提醒" --date "2026-04-13 09:00"
 
 # 列出所有提醒
 reminders list
@@ -250,7 +306,7 @@ reminders list
 reminders complete "给某总发邮件确认合同"
 ```
 
-默认 list 名称：`Inbox`（可在 config.yaml 修改）
+默认 list 名称：`提醒`（可在 config.yaml 修改）
 
 ---
 
@@ -299,10 +355,44 @@ reminders complete "给某总发邮件确认合同"
 ```
 ✓ 已捕获
   内容：「今天跟张总确认合同，下周签约」
-  AI摘要：确认合同细节，约定下周签约
-  标签：@work @people/张总 @deadline/下周
-  待办：跟进签约 ⏳ 下周
-  去向：notes/2026/04/09.md + SQLite
+  ID：capture-1744232400000
+
+请分析以上记录，提取结构化信息：
+```json
+{
+  "action": "parse_capture",
+  "note_id": "capture-1744232400000",
+  "raw_text": "今天跟张总确认合同，下周签约",
+  "extract": {
+    "summary": "一句话摘要",
+    "category": "work|life|health|idea",
+    "tags": ["@work", "@people/张总"],
+    "entities": {...},
+    "is_todo": true,
+    "todo_due": "下周一"
+  }
+}
+```
+```
+
+### 大模型解析结果（用户回复）
+```json
+{
+  "action": "parsed",
+  "note_id": "capture-1744232400000",
+  "summary": "确认合同细节，约定下周签约",
+  "category": "work",
+  "tags": ["@work", "@people/张总", "@deadline/下周"],
+  "entities": {
+    "people": ["张总"],
+    "emails": [],
+    "amounts": [],
+    "locations": [],
+    "times": []
+  },
+  "is_todo": true,
+  "todo_due": "2026-04-14"
+}
 ```
 
 ### 周报格式
@@ -331,29 +421,93 @@ reminders complete "给某总发邮件确认合同"
   情绪：🟢 积极 5次 🟡 平缓 6次 🔴 低落 1次
 ```
 
-### 性格画像格式
+### 成就解锁通知
+当满足成就条件时，capture 后会显示：
 ```
-capture-you profile
-═══════════════════════════════════════
-# 性格画像 v1.0（持续更新）
+╔━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╗
+║  🎉 新成就解锁！                              ║
+╠━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╣
+║  🌱 初来乍到 — 记录了第一条笔记，继续保持！     ║
+╚━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╝
+```
 
-## 📊 情绪仪表盘
-  近30天情绪分布：
-  🟢 积极：12次（40%）
-  🟡 平缓：14次（47%）
-  🔴 低落：4次（13%）
+### 统计仪表盘格式
+```
+📊 CAPTURE-YOU 仪表盘
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## ⚡ 能量状态追踪
-  平均能量：6.2/10
-  高能量时段：周三、周四
-  低能量时段：周六
+## 💡 连续记录
+  连续记录 3 天（最长 7）
+
+## 📝 记录概览
+  总记录   42    条
+  本周新增 15   条  +3
+  本月新增 42    条
+
+## 📈 30天趋势
+  ▁▂▃▅▆▇█▇▅▃▂▁▂▃▄▅▆▇█▇▅▃▂▁
+  日均 1.4 条  30 天有记录
+
+## 📋 待办状态
+  完成率  ████████░░ 80%  (8/10)
+  ⏳ 2 待处理
+  本周消化 3/5（60%）
+
+## 📂 分类分布
+  work      ████████████████████  29 条
+  life      ██████               10 条
+  idea      █                     1 条
+
+## 💡 即时洞察
+  🔥 已连续记录 3 天，保持这个节奏
+  📅 本周↑3条
+  📋 2 条待办在手
+```
+
+### 性格画像格式（v2.0）
+```
+🎭 性格画像 v2.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 🏷️ 人格标签
+  ⚙️ 稳定推进  🌤️ 心态平和  🔋 能量偏低
+  完成率50%  平缓60%  低能量100%
+
+## 📊 五维对比（本周 vs 上周）
+  情绪  ████████░░ 75% ← 60% ↑15%
+  能量  ██████░░░░ 55% ← 40% ↑15%
+  人际  █████████░ 85% ← 80% ↑5%
+  执行  ████░░░░░░ 40% ← 35% ↑5%
+  健康  █████░░░░░ 50% ← 45% ↑5%
+
+## 📅 本周 vs 上周
+  记录数：↑20条
+  积极情绪：↑25%
+  完成率：↑50%
+  高能量：持平
+
+## 😊 情绪仪表盘
+  积极 ████░░░░░░ 40%  17次
+  平缓 ██████░░░░ 60%  25次
+  低落 ░░░░░░░░░░  0%   0次
 
 ## 👥 关系网络
-  高频联系人：张总（商务）、李总（项目）
+  李总 ●●●●● 14次
+  张总 ●●●●○  4次
 
-## 🎯 执行力分析
-  待办完成率：72%
-  逾期未完成：3条
+## 🎯 执行力
+  完成率 █████░░░░░ 50%
+  ⏳ 2待处理
+
+## 🏃 健康追踪
+  睡眠  ●  0  运动  ●  0  饮食  ●  0
+  晚睡率 █████░░░░░ 50%  (1/2天)
+
+## 🏆 已解锁成就 (4)
+  📋 项目管理者  2026/4/10
+  🌙 深夜记录员  2026/4/10
+  🔥 记录狂魔    2026/4/10
+  🌱 初来乍到    2026/4/10
 ```
 
 ---
@@ -381,11 +535,11 @@ capture-you profile
 
 ```yaml
 capture-you:
-  data_dir: ~/.capture-you
-  memory_dir: memory  # 兼容现有结构
+  data_dir: ~/.claude/skills/capture-you
+  memory_dir: memory  # 用户数据目录
 
   reminders:
-    list_name: Inbox
+    list_name: 提醒
     default_time: "09:00"
 
   ai:
@@ -397,7 +551,7 @@ capture-you:
   storage:
     markdown: true
     sqlite: true
-    sqlite_path: ~/.capture-you/sqlite/capture.db
+    sqlite_path: ~/.claude/skills/capture-you/sqlite/capture.db
 
   personality:
     enabled: true
@@ -421,36 +575,47 @@ capture-you:
 capture-you/
 ├── SKILL.md              # 本文档
 ├── capture.js           # 记录解析主逻辑
+├── achievements.js      # 隐藏成就系统
 ├── review.js            # 周报/月报生成
 ├── profile.js           # 性格画像生成
-├── stat.js             # 统计信息
+├── stat.js              # 统计信息
 ├── query.js            # 搜索查询
 ├── db.js               # SQLite 操作
+├── setup.js            # 初始化问卷引导
+├── import.js           # 数据导入
+├── backup.js           # 数据备份
+├── projects.js         # 项目管理（数据源：SQLite）
+├── migrate-projects.js  # 项目迁移工具（Markdown → SQLite）
 ├── config.yaml         # 配置文件
-└── scripts/
-    ├── init-db.sh      # 初始化数据库
-    └── check-todos.js  # 待办过期检查
+└── memory/             # 用户数据（升级时保留）
+    ├── capture-log.md
+    ├── promises.md
+    └── work-progress.md  # 项目 Markdown 视图（由 SQLite 导出）
 ```
 
 ---
 
 ## 与现有 memory 文件的集成
 
-现有文件保持兼容，自动升级：
-
-| 现有文件 | 角色 | 升级说明 |
-|----------|------|----------|
-| `memory/capture-log.md` | 随手记主文件 | 追加 AI 摘要字段 |
-| `memory/promises.md` | 承诺追踪 | 迁移至 SQLite + Markdown 双存储 |
+| 文件 | 角色 | 说明 |
+|------|------|------|
+| `memory/capture-log.md` | 随手记原始记录 | 追加 AI 摘要字段 |
+| `memory/promises.md` | 承诺追踪 | 追加 AI 摘要字段 |
+| `memory/work-progress.md` | 项目 Markdown 视图 | 由 `projects.js export` 从 SQLite 导出生成 |
 | `memory/tag-taxonomy.md` | 标签体系 | 保持不变，作为事实源 |
 | `memory/personality.md` | 性格画像 | 新增，渐进式更新 |
+
+> **数据流**：`capture.js` 写入 SQLite → 大模型解析更新记录 → `projects.js` 从 SQLite 读取 → `projects.js export` 导出 Markdown 视图
 
 ---
 
 ## 触发方式
 
-1. `/capture-you init` — 初始化用户画像（首次使用）
-2. `/capture-you` — 激活持续捕捉模式
-3. `/capture-you note <内容>` — 快速记录
-4. 直接说「帮我记」「记一下」— 触发捕捉
-5. 「查一下...」「看看承诺」— 查询模式
+1. `/capture-you init` — 初始化用户画像（多步问卷）
+2. `/capture-you <内容>` — 直接记录任意内容
+3. `/capture-you query <关键词>` — 搜索历史
+4. `/capture-you review week` — 生成周报
+5. `/capture-you profile` — 查看性格画像
+6. `/capture-you stat` — 查看统计
+7. `/capture-you projects` — 查看项目列表
+8. `/capture-you projects export` — 导出项目 Markdown

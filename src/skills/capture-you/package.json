@@ -1,8 +1,23 @@
 {
   "name": "capture-you",
-  "version": "1.0.0",
-  "description": "AI 增强型随手捕捉系统",
+  "version": "1.0.1",
+  "description": "知己：习惯养成 → 定期复盘 → 自我提升：自然语言随手记，AI 解析存储，成长追踪",
   "main": "capture.js",
+  "files": [
+    "SKILL.md",
+    "capture.js",
+    "setup.js",
+    "review.js",
+    "profile.js",
+    "stat.js",
+    "query.js",
+    "db.js",
+    "backup.js",
+    "config.yaml",
+    "scripts/",
+    "tests/",
+    "templates/"
+  ],
   "scripts": {
     "install-deps": "npm install",
     "init": "node db.js init",
@@ -17,7 +32,7 @@
     "query": "node query.js"
   },
   "keywords": ["capture", "notes", "ai", "productivity", "claude-skill"],
-  "author": "",
+  "author": "windknow",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"

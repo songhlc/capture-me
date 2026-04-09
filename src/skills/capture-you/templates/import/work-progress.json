@@ -1,0 +1,32 @@
+{
+  "name": "work-progress",
+  "description": "工作专项进度表格（1015/0515迭代）",
+  "format": "markdown-table",
+  "fields": {
+    "raw_text": {
+      "source": "template:col: [{col0}] {col1}迭代 | {col3}",
+      "maxLen": 500
+    },
+    "ai_summary": {
+      "source": "template:col: [{col0}] {col4}",
+      "maxLen": 80
+    },
+    "category": {
+      "source": "const:work"
+    },
+    "tags": {
+      "source": "template:col: @work @project/{col0} @iteration/{col1} @domain/{col2}",
+      "sep": " "
+    },
+    "extracted_entities": {
+      "source": "template:col: {\"people\":[\"{col4}\"]}",
+      "json": true
+    }
+  },
+  "options": {
+    "skipEmpty": true,
+    "dedup": {
+      "fields": ["raw_text"]
+    }
+  }
+}

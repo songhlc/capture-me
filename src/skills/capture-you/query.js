@@ -8,8 +8,8 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const MEMORY_DIR = path.join(__dirname, '../../../memory');
-const DB_PATH = path.join(MEMORY_DIR, '../.claude/skills/capture-you/sqlite/capture.db');
+const MEMORY_DIR = path.join(__dirname, 'memory');
+const DB_PATH = path.join(__dirname, 'sqlite', 'capture.db');
 const CAPTURE_LOG = path.join(MEMORY_DIR, 'capture-log.md');
 
 function ensureDb() {
@@ -52,6 +52,66 @@ function searchInMarkdown(keyword, limit = 10) {
   return results;
 }
 
+function getAllTodos(db) {
+  const stmt = db.prepare(`
+    SELECT id, date, time, raw_text, ai_summary, todo_due, todo_done
+    FROM notes
+    WHERE is_todo = 1
+    ORDER BY todo_done ASC, todo_due ASC, date DESC
+  `);
+  return stmt.all();
+}
+
+function formatTodosTable(todos) {
+  if (todos.length === 0) {
+    return `📋 待办列表\n═══════════════════════════════════════\n\n暂无待办\n`;
+  }
+
+  const pending = todos.filter(t => !t.todo_done);
+  const completed = todos.filter(t => t.todo_done);
+  const completionRate = Math.round((completed.length / todos.length) * 100);
+
+  let lines = [
+    `📋 待办列表`,
+    `═══════════════════════════════════════`,
+    ``,
+  ];
+
+  const fmtRow = (id, due, content) => {
+    const maxLen = 50;
+    const displayContent = content.length > maxLen ? content.slice(0, maxLen - 3) + '...' : content;
+    return `${id.padEnd(10)} ${due.padEnd(12)} ${displayContent}`;
+  };
+
+  if (pending.length > 0) {
+    lines.push(`⏳ 待处理（${pending.length}条）`);
+    lines.push(`──────────────────────────────────────`);
+    lines.push(`ID         截止日期     内容`);
+    for (const t of pending) {
+      const due = t.todo_due ? t.todo_due.split('T')[0] : '未设置';
+      lines.push(fmtRow(t.id.slice(-10), due, t.raw_text));
+    }
+    lines.push(``);
+  }
+
+  if (completed.length > 0) {
+    lines.push(`✓ 已完成（${completed.length}条）`);
+    lines.push(`──────────────────────────────────────`);
+    lines.push(`ID         截止日期     内容`);
+    for (const t of completed) {
+      const due = t.todo_due ? t.todo_due.split('T')[0] : '未设置';
+      lines.push(fmtRow(t.id.slice(-10), due, t.raw_text));
+    }
+    lines.push(``);
+  }
+
+  lines.push(`──────────────────────────────────────`);
+  lines.push(`共 ${todos.length} 条待办，完成率 ${completionRate}%`);
+  lines.push(`完成待办：done <id>`);
+
+  return lines.join('\n');
+}
+
 function formatResults(sqliteResults, markdownResults, keyword) {
   const lines = [
     `🔍 搜索结果：「${keyword}」`,
@@ -88,6 +148,14 @@ function formatResults(sqliteResults, markdownResults, keyword) {
 
 function query(keyword, limit = 20) {
   const db = ensureDb();
+
+  // Special handling for todos command
+  if (keyword === 'todos' && db) {
+    const todos = getAllTodos(db);
+    db.close();
+    return formatTodosTable(todos);
+  }
+
   let sqliteResults = [];
   let markdownResults = [];
 
