@@ -1,0 +1,31 @@
+{
+  "name": "capture-you",
+  "version": "1.0.0",
+  "description": "AI 增强型随手捕捉系统",
+  "main": "capture.js",
+  "scripts": {
+    "install-deps": "npm install",
+    "init": "node db.js init",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "capture": "node capture.js",
+    "review:week": "node review.js week",
+    "review:month": "node review.js month",
+    "profile": "node profile.js",
+    "stat": "node stat.js",
+    "query": "node query.js"
+  },
+  "keywords": ["capture", "notes", "ai", "productivity", "claude-skill"],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/*
+.claude/**/node_modules/*
+
+# Skills (keep structure, ignore generated data)
+src/skills/*/sqlite/
+src/skills/*/node_modules/
+src/skills/*/.DS_Store
+src/skills/*/coverage/
+
+# Deployed skills (source of truth is src/skills)
+.claude/skills/*/sqlite/
+.claude/skills/*/node_modules/
+
+# Coverage
+.coverage/
+coverage/
+
+# OS
+.DS_Store
+*.swp
+*.log
+
+# Logs
+capture-you/logs/
+.capture-you/logs/
+.claude

@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Database (keep directory, ignore files)
+sqlite/
+
+# Test coverage
+.coverage/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+*.swp
+
+# IDE
+.idea/
+.vscode/
