@@ -22,6 +22,4 @@ coverage/
 *.log
 
 # Logs
-capture-you/logs/
-.capture-you/logs/
 .claude

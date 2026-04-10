@@ -14,19 +14,15 @@
 
 | 源码位置 | 目标位置 | 说明 |
 |----------|----------|------|
-| `src/skills/capture-you/` | `~/.claude/skills/capture-you/` | capture-you 技能源码（归档） |
-| `src/skills/capture-me/` | `~/.claude/skills/capture-me/` | capture-me 技能源码（当前主版本） |
+| `src/skills/capture-me/` | `~/.claude/skills/capture-me/` | capture-me 技能源码 |
 
 ## 同步操作
 
 修改 `src/` 目录下的文件后，必须执行同步命令：
 
 ```bash
-# 示例：同步 capture-me 相关文件
+# 同步 capture-me 相关文件
 cp src/skills/capture-me/*.js ~/.claude/skills/capture-me/
-
-# 示例：同步 capture-you 相关文件
-cp src/skills/capture-you/*.js ~/.claude/skills/capture-you/
 ```
 
 同步是**强制的**，未同步的改动不会被执行。

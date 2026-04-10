@@ -1,4 +1,4 @@
-capture-you 设计方案
+capture-me 设计方案
 一、整体架构
 ┌─────────────────────────────────────────────┐
 │  用户入口（自然语言 note 命令）               │
@@ -31,7 +31,7 @@ capture-you 设计方案
 └─────────────────────────────────────────────┘
 二、数据存储
 目录结构：
-~/.capture-you/
+~/.capture-me/
 ├── notes/            # 原始 Markdown 文件
 │   ├── 2026/
 │   │   ├── 04/
@@ -54,7 +54,7 @@ CREATE TABLE notes (
   is_todo INTEGER,     -- 是否含待办
   todo_due TEXT,       -- 截止日期
   todo_done INTEGER,   -- 是否完成
-  source TEXT          -- 来源：cli/feishu/capture-you
+  source TEXT          -- 来源：cli/feishu/capture-me
 );
 
 CREATE TABLE personality (
@@ -116,7 +116,7 @@ stat
 更新性格画像证据链
 五、性格分析（渐进式）
 每个维度用evidence支撑，随记录积累逐步强化：
-capture-you profile
+capture-me profile
 ═══════════════════════════════
 # 性格画像 v1.0 （持续更新）
 ─────────────────────────────────
