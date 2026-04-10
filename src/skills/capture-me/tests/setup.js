@@ -11,7 +11,7 @@ const path = require('path');
 const os = require('os');
 
 // 临时目录用于测试
-const TEST_TEMP_DIR = path.join(os.tmpdir(), 'capture-you-test');
+const TEST_TEMP_DIR = path.join(os.tmpdir(), 'capture-me-test');
 
 // 全局测试辅助函数
 global.testUtils = {

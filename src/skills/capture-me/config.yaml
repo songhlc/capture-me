@@ -1,6 +1,6 @@
-capture-you:
+capture-me:
   # 数据目录
-  data_dir: ~/.capture-you
+  data_dir: ~/.capture-me
   memory_dir: memory  # 兼容现有 memory/ 结构
 
   # Apple Reminders 设置
@@ -21,8 +21,8 @@ capture-you:
   storage:
     markdown: true
     sqlite: true
-    sqlite_path: ~/.capture-you/sqlite/capture.db
-    notes_dir: ~/.capture-you/notes
+    sqlite_path: ~/.capture-me/sqlite/capture.db
+    notes_dir: ~/.capture-me/notes
 
   # 性格分析设置
   personality:

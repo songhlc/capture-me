@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * setup.js — capture-you 首次使用引导
+ * setup.js — capture-me 首次使用引导
  * 收集用户基本信息，初始化用户画像
  *
  * 对话式 API:
@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
-// 用户数据目录：.claude/skills/capture-you/memory/
+// 用户数据目录：.claude/skills/capture-me/memory/
 const MEMORY_DIR = path.join(__dirname, 'memory');
 const USER_PROFILE = path.join(MEMORY_DIR, 'user-profile.md');
 
@@ -131,7 +131,7 @@ function log(color, ...args) {
 function header() {
   console.log('');
   log(colors.cyan, '╔══════════════════════════════════════════════════════╗');
-  log(colors.cyan, '║       capture-you ✨ 首次使用引导                   ║');
+  log(colors.cyan, '║       capture-me ✨ 首次使用引导                   ║');
   log(colors.cyan, '╚══════════════════════════════════════════════════════╝');
   console.log('');
   log(colors.dim, '  让我先了解一下你，这样可以更好地为你服务。');
@@ -266,7 +266,7 @@ type: user
 
 ---
 
-*此文件由 capture-you skill 自动维护*
+*此文件由 capture-me skill 自动维护*
 `;
 
   fs.writeFileSync(USER_PROFILE, content, 'utf-8');
@@ -278,9 +278,9 @@ function isSetupComplete() {
   if (!fs.existsSync(USER_PROFILE)) return false;
 
   const content = fs.readFileSync(USER_PROFILE, 'utf-8');
-  // setup.js 初始化过的文件会包含 "capture-you skill" 或 "初始化日期"
+  // setup.js 初始化过的文件会包含 "capture-me skill" 或 "初始化日期"
   // 但如果称呼为空说明是空模板，仍需完成
-  const hasMarker = content.includes('capture-you') || content.includes('初始化日期');
+  const hasMarker = content.includes('capture-me') || content.includes('初始化日期');
   const profile = getProfile();
   const hasName = profile && profile['称呼'] && profile['称呼'].trim() !== '';
 
@@ -544,7 +544,7 @@ async function main() {
   log(colors.dim, `  职业：${answers['职业/领域'] || '未设置'}`);
   log(colors.dim, `  主要场景：${answers['主要场景'] || '未设置'}`);
   console.log('');
-  log(colors.cyan, '  现在可以开始使用 capture-you 了！');
+  log(colors.cyan, '  现在可以开始使用 capture-me 了！');
   log(colors.cyan, '  运行 `node capture.js "<内容>"` 开始记录。\n');
 }
 

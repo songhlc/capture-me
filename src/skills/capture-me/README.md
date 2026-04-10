@@ -49,11 +49,11 @@
 在 Claude Code 中直接说话就能用：
 
 ```
-/capture-you init        # 首次使用，初始化你的画像
-/capture-you             # 开始捕捉，说出你的想法
-/capture-you todos       # 查看所有待办
-/capture-you review week  # 生成周报
-/capture-you profile     # 查看性格画像
+/capture-me init        # 首次使用，初始化你的画像
+/capture-me             # 开始捕捉，说出你的想法
+/capture-me todos       # 查看所有待办
+/capture-me review week  # 生成周报
+/capture-me profile     # 查看性格画像
 ```
 
 ---
@@ -64,10 +64,10 @@
 
 ```bash
 # 1. 复制 skill 到你的 Claude Code 配置目录
-cp -r src/skills/capture-you ~/.claude/skills/capture-you
+cp -r src/skills/capture-me ~/.claude/skills/capture-me
 
 # 2. 重启 Claude Code
-# 3. 输入 /capture-you 开始使用
+# 3. 输入 /capture-me 开始使用
 ```
 
 ### 方式二：OpenClaw 用户

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * backup.js — capture-you 数据备份
+ * backup.js — capture-me 数据备份
  *
  * 功能：
  *   - 备份用户数据到指定目录

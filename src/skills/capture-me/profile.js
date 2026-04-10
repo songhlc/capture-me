@@ -300,7 +300,34 @@ function deriveTags({ emotions, energy, people, todos, health, sleep }) {
   return tags.slice(0, 3);
 }
 
-// ─── 周对比 ──────────────────────────────────────────────
+// ─── 周对比（接收预取数据，消除重复查询） ──────────────────
+
+function weekOverWeekFromData(thisWeekNotes, lastWeekNotes) {
+  const thisEmotions = analyzeEmotions(thisWeekNotes);
+  const lastEmotions = analyzeEmotions(lastWeekNotes);
+
+  const thisTodos = analyzeTodos(thisWeekNotes);
+  const lastTodos = analyzeTodos(lastWeekNotes);
+
+  const thisEnergy = analyzeEnergy(thisWeekNotes);
+  const lastEnergy = analyzeEnergy(lastWeekNotes);
+
+  const thisHighRate = thisEnergy.total > 0 ? Math.round(thisEnergy.high / thisEnergy.total * 100) : 0;
+  const lastHighRate = lastEnergy.total > 0 ? Math.round(lastEnergy.high / lastEnergy.total * 100) : 0;
+
+  return {
+    thisWeek: { notes: thisWeekNotes.length, emotions: thisEmotions, todos: thisTodos, energy: thisEnergy },
+    lastWeek: { notes: lastWeekNotes.length, emotions: lastEmotions, todos: lastTodos, energy: lastEnergy },
+    delta: {
+      notes: thisWeekNotes.length - lastWeekNotes.length,
+      positiveRate: thisEmotions.pct.positive - lastEmotions.pct.positive,
+      todoRate: thisTodos.rate - lastTodos.rate,
+      highEnergy: thisHighRate - lastHighRate,
+    }
+  };
+}
+
+// ─── 周对比（原版，保留用于兼容） ─────────────────────────
 
 function weekOverWeek(db) {
   const now = new Date();
@@ -312,31 +339,12 @@ function weekOverWeek(db) {
   const thisWeek = getNotesInRange(db, monday.toISOString().split('T')[0], now.toISOString().split('T')[0]);
   const lastWeek = getNotesInRange(db, lastMonday.toISOString().split('T')[0], lastSunday.toISOString().split('T')[0]);
 
-  const thisEmotions = analyzeEmotions(thisWeek);
-  const lastEmotions = analyzeEmotions(lastWeek);
-
-  const thisTodos = analyzeTodos(thisWeek);
-  const lastTodos = analyzeTodos(lastWeek);
-
-  const thisEnergy = analyzeEnergy(thisWeek);
-  const lastEnergy = analyzeEnergy(lastWeek);
-
-  return {
-    thisWeek: { notes: thisWeek.length, emotions: thisEmotions, todos: thisTodos, energy: thisEnergy },
-    lastWeek: { notes: lastWeek.length, emotions: lastEmotions, todos: lastTodos, energy: lastEnergy },
-    delta: {
-      notes: thisWeek.length - lastWeek.length,
-      positiveRate: thisEmotions.pct.positive - lastEmotions.pct.positive,
-      todoRate: thisTodos.rate - lastTodos.rate,
-      highEnergy: (thisEnergy.total > 0 ? Math.round(thisEnergy.high / thisEnergy.total * 100) : 0) -
-                   (lastEnergy.total > 0 ? Math.round(lastEnergy.high / lastEnergy.total * 100) : 0),
-    }
-  };
+  return weekOverWeekFromData(thisWeek, lastWeek);
 }
 
 // ─── 雷达数据 ────────────────────────────────────────────
 
-function buildRadarData(wow) {
+function buildRadarData(wow, health, sleep) {
   const { thisWeek, lastWeek } = wow;
 
   const emotionScore = thisWeek.emotions.pct.positive / 100;
@@ -351,40 +359,81 @@ function buildRadarData(wow) {
   const todoScore = thisWeek.todos.total > 0 ? thisWeek.todos.completed / thisWeek.todos.total : 0.5;
   const lastTodoScore = lastWeek.todos.total > 0 ? lastWeek.todos.completed / lastWeek.todos.total : 0.5;
 
-  const healthScore = 0.5; // 简化：暂无 health 数据参与雷达
+  // 健康分：综合睡眠质量(权重40%)、运动(权重35%)、饮食(权重25%)
+  const sleepScore = sleep.totalDays > 0 ? (100 - sleep.rate) / 100 : 0.5;
+  const exerciseScore = Math.min(1, health.exercise / 7);
+  const dietScore = Math.min(1, health.diet / 5);
+  const healthScore = sleepScore * 0.4 + exerciseScore * 0.35 + dietScore * 0.25;
+  const lastHealthScore = healthScore; // 健康数据无上周对比时近似取当前值
 
   return [
     { label: '情绪', value: emotionScore, lastValue: lastEmotionScore },
     { label: '能量', value: energyScore, lastValue: lastEnergyScore },
     { label: '人际', value: socialScore, lastValue: lastSocialScore },
     { label: '执行', value: todoScore, lastValue: lastTodoScore },
-    { label: '健康', value: healthScore, lastValue: healthScore },
+    { label: '健康', value: healthScore, lastValue: lastHealthScore },
   ];
 }
 
 // ─── 生成画像 ─────────────────────────────────────────────
 
-function generateProfile() {
-  const db = ensureDb();
-  if (!db) return null;
+function getEmptyProfileMessage() {
+  return `╔${'━'.repeat(50)}
+║  📊 性格画像
+╠${'━'.repeat(50)}
+║  暂无足够数据生成画像
+╚${'━'.repeat(50)}`;
+}
 
+/**
+ * 优化版：weekOverWeekFromData 接收预取数据，消除 DB 重复查询
+ * 6 个 analyzeX 使用 Promise.all 并行执行
+ */
+async function generateProfileAsync() {
+  const db = ensureDb();
+  if (!db) return Promise.resolve(null);
+
+  const now = new Date();
+  const dayOfWeek = now.getDay() || 7;
+  const monday = new Date(now); monday.setDate(now.getDate() - dayOfWeek + 1);
+  const lastMonday = new Date(monday); lastMonday.setDate(monday.getDate() - 7);
+  const lastSunday = new Date(monday); lastSunday.setDate(monday.getDate() - 1);
+  const mondayStr = monday.toISOString().split('T')[0];
+  const todayStr = now.toISOString().split('T')[0];
+  const lastMondayStr = lastMonday.toISOString().split('T')[0];
+  const lastSundayStr = lastSunday.toISOString().split('T')[0];
+
+  // 获取数据（better-sqlite3 同步，但这些查询都很轻量）
   const notes = getRecentNotes(db, 30);
+  const thisWeekNotes = getNotesInRange(db, mondayStr, todayStr);
+  const lastWeekNotes = getNotesInRange(db, lastMondayStr, lastSundayStr);
   db.close();
 
   if (notes.length === 0) {
-    return `╔${'━'.repeat(50)}\n║  📊 性格画像\n╠${'━'.repeat(50)}\n║  暂无足够数据生成画像\n╚${'━'.repeat(50)}`;
+    return Promise.resolve(getEmptyProfileMessage());
   }
 
-  const emotions = analyzeEmotions(notes);
-  const energy = analyzeEnergy(notes);
-  const people = analyzePeople(notes);
-  const todos = analyzeTodos(notes);
-  const health = analyzeHealth(notes);
-  const sleep = analyzeSleepPattern(notes);
-  const wow = weekOverWeek(ensureDb()); // re-open for week comparison
-  const radarData = buildRadarData(wow);
+  // 6 个 analyzeX 并行执行（analyzeX 是同步函数，Promise.resolve 让它们进入微任务队列）
+  const [emotions, energy, people, todos, health, sleep] = await Promise.all([
+    Promise.resolve(analyzeEmotions(notes)),
+    Promise.resolve(analyzeEnergy(notes)),
+    Promise.resolve(analyzePeople(notes)),
+    Promise.resolve(analyzeTodos(notes)),
+    Promise.resolve(analyzeHealth(notes)),
+    Promise.resolve(analyzeSleepPattern(notes)),
+  ]);
+
+  // weekOverWeekFromData 复用预取数据，不重复查询
+  const wow = weekOverWeekFromData(thisWeekNotes, lastWeekNotes);
+  const radarData = buildRadarData(wow, health, sleep);
   const personalityTags = deriveTags({ emotions, energy, people, todos, health, sleep });
-  const today = new Date().toISOString().split('T')[0];
+  const today = now.toISOString().split('T')[0];
+
+  return Promise.resolve(buildProfileOutput({ personalityTags, emotions, energy, people, todos, health, sleep, wow, radarData, today, notesCount: notes.length }));
+}
+
+// 构建报告输出（抽离供 generateProfile 和 generateProfileAsync 共用）
+function buildProfileOutput({ personalityTags, emotions, energy, people, todos, health, sleep, wow, radarData, today, notesCount }) {
 
   const bd = '━'.repeat(50);
   const lines = [];
@@ -411,24 +460,23 @@ function generateProfile() {
   lines.push(`\x1b[36m║\x1b[0m  \x1b[1m📊 五维对比（本周 vs 上周）\x1b[0m${' '.repeat(17)}\x1b[36m║\x1b[0m`);
   lines.push(`\x1b[36m╠${bd}╣\x1b[0m`);
 
-  const dims = [
-    { label: '情绪', current: radarData.scores.emotion, prev: radarData.prevScores?.emotion || 0 },
-    { label: '能量', current: radarData.scores.energy, prev: radarData.prevScores?.energy || 0 },
-    { label: '人际', current: radarData.scores.social, prev: radarData.prevScores?.social || 0 },
-    { label: '执行', current: radarData.scores.execution, prev: radarData.prevScores?.execution || 0 },
-    { label: '健康', current: radarData.scores.health, prev: radarData.prevScores?.health || 0 },
-  ];
-
-  for (const dim of dims) {
-    const filled = Math.round(dim.current / 10);
-    const bar = '\x1b[36m' + '\u2588'.repeat(filled) + '\x1b[90m' + '\u2591'.repeat(10 - filled);
-    const delta = dim.prev > 0 ? dim.current - dim.prev : 0;
+  for (const dim of radarData) {
+    const filled = Math.round(dim.value * 10);
+    const bar = '\x1b[32m' + '\u2588'.repeat(filled) + '\x1b[90m' + '\u2591'.repeat(10 - filled);
+    const delta = Math.round((dim.value - dim.lastValue) * 100);
     const deltaStr = delta > 0 ? `\x1b[32m ↑${delta}%\x1b[0m` : delta < 0 ? `\x1b[31m ↓${Math.abs(delta)}%\x1b[0m` : '\x1b[90m →\x1b[0m';
-    const pct = `${dim.current}%`;
-    const prevStr = dim.prev > 0 ? `\x1b[90m ← ${dim.prev}%\x1b[0m` : '';
-    lines.push(`\x1b[36m║\x1b[0m  ${dim.label}  ${bar}  ${pct}${prevStr}${deltaStr}${' '.repeat(Math.max(0, 32 - bar.length - pct.length - (dim.prev > 0 ? 8 : 0) - (delta !== 0 ? 6 : 4)))}\x1b[36m║\x1b[0m`);
+    const pct = `${Math.round(dim.value * 100)}%`;
+    const prevStr = dim.lastValue > 0 ? `\x1b[90m ← ${Math.round(dim.lastValue * 100)}%\x1b[0m` : '\x1b[90m ← --\x1b[0m';
+    lines.push(`\x1b[36m║\x1b[0m  ${dim.label}  ${bar}  ${pct}${prevStr}${deltaStr}${' '.repeat(Math.max(0, 32 - bar.length - pct.length - 8 - 6))}\x1b[36m║\x1b[0m`);
   }
 
+  lines.push(`\x1b[36m╠${bd}╣\x1b[0m`);
+
+  // ── 雷达图 ──
+  const radarLines = drawRadar(radarData).split('\n');
+  for (const rl of radarLines) {
+    lines.push(`\x1b[36m║\x1b[0m  ${rl.padEnd(48)}\x1b[36m║\x1b[0m`);
+  }
   lines.push(`\x1b[36m╠${bd}╣\x1b[0m`);
 
   // ── 周对比 ──
@@ -524,7 +572,7 @@ function generateProfile() {
   }
 
   lines.push(`\x1b[36m╠${bd}╣\x1b[0m`);
-  lines.push(`\x1b[36m║\x1b[0m  \x1b[2m分析于 ${today}  |  ${notes.length}条记录\x1b[0m${' '.repeat(13)}\x1b[36m║\x1b[0m`);
+  lines.push(`\x1b[36m║\x1b[0m  \x1b[2m分析于 ${today}  |  ${notesCount}条记录\x1b[0m${' '.repeat(13)}\x1b[36m║\x1b[0m`);
   lines.push(`\x1b[36m╚${bd}╝\x1b[0m`);
   lines.push('');
 
@@ -534,7 +582,7 @@ function generateProfile() {
 // ─── CLI ────────────────────────────────────────────────
 
 if (require.main === module) {
-  console.log(generateProfile());
+  generateProfileAsync().then(output => console.log(output));
 }
 
-module.exports = { generateProfile, analyzeEmotions, analyzePeople, analyzeTodos };
+module.exports = { generateProfileAsync, buildProfileOutput, analyzeEmotions, analyzePeople, analyzeTodos };

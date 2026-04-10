@@ -1,5 +1,5 @@
 ---
-name: capture-you
+name: capture-me
 description: 习惯养成 → 定期复盘 → 自我提升：自然语言随手记，AI 解析存储，成长追踪
 user-invocable: true
 argument-hint: "[init|note|query|review|profile|stat|projects] [内容]"
@@ -13,7 +13,7 @@ argument-hint: "[init|note|query|review|profile|stat|projects] [内容]"
 ```
 ┌─────────────────────────────────────────────┐
 │  用户入口（自然语言）                        │
-│  /capture-you 今天跟张总确认合同，下周签约   │
+│  /capture-me 今天跟张总确认合同，下周签约   │
 └──────────────┬──────────────────────────────┘
                │
                ▼
@@ -42,7 +42,7 @@ argument-hint: "[init|note|query|review|profile|stat|projects] [内容]"
 - 不依赖外部 API，不使用正则匹配做"AI解析"
 
 **工作流程**：
-1. 用户输入 `/capture-you <内容>`
+1. 用户输入 `/capture-me <内容>`
 2. capture.js 存储原始内容，输出结构化解析指令
 3. 大模型看到指令，理解用户意图，提取结构化信息
 4. 大模型回复 JSON 格式的解析结果
@@ -56,7 +56,7 @@ argument-hint: "[init|note|query|review|profile|stat|projects] [内容]"
 ### 目录结构
 
 ```
-~/.claude/skills/capture-you/   # 技能根目录
+~/.claude/skills/capture-me/   # 技能根目录
 ├── memory/                    # 用户数据（升级时保留）
 │   ├── capture-log.md       # 随手记原始记录
 │   └── promises.md          # 承诺与待办追踪
@@ -88,7 +88,7 @@ CREATE TABLE notes (
   is_todo INTEGER,        -- 是否含待办
   todo_due TEXT,          -- 截止日期
   todo_done INTEGER,      -- 是否完成
-  source TEXT             -- cli/capture-you
+  source TEXT             -- cli/capture-me
 );
 
 CREATE TABLE projects (
@@ -516,17 +516,17 @@ reminders complete "给某总发邮件确认合同"
 
 ### 每周日早 9 点 — 周报生成
 ```bash
-0 9 * * 0 cd ~/.claude/skills/capture-you && node review.js week
+0 9 * * 0 cd ~/.claude/skills/capture-me && node review.js week
 ```
 
 ### 每月最后一天 — 月报生成
 ```bash
-0 18 28-31 * * cd ~/.claude/skills/capture-you && node review.js month
+0 18 28-31 * * cd ~/.claude/skills/capture-me && node review.js month
 ```
 
 ### 每日晚 9 点 — 待办过期检查
 ```bash
-0 21 * * * cd ~/.claude/skills/capture-you && node check-todos.js
+0 21 * * * cd ~/.claude/skills/capture-me && node check-todos.js
 ```
 
 ---
@@ -534,8 +534,8 @@ reminders complete "给某总发邮件确认合同"
 ## 配置文件（config.yaml）
 
 ```yaml
-capture-you:
-  data_dir: ~/.claude/skills/capture-you
+capture-me:
+  data_dir: ~/.claude/skills/capture-me
   memory_dir: memory  # 用户数据目录
 
   reminders:
@@ -551,7 +551,7 @@ capture-you:
   storage:
     markdown: true
     sqlite: true
-    sqlite_path: ~/.claude/skills/capture-you/sqlite/capture.db
+    sqlite_path: ~/.claude/skills/capture-me/sqlite/capture.db
 
   personality:
     enabled: true
@@ -572,7 +572,7 @@ capture-you:
 ## 实现文件
 
 ```
-capture-you/
+capture-me/
 ├── SKILL.md              # 本文档
 ├── capture.js           # 记录解析主逻辑
 ├── achievements.js      # 隐藏成就系统
@@ -611,11 +611,11 @@ capture-you/
 
 ## 触发方式
 
-1. `/capture-you init` — 初始化用户画像（多步问卷）
-2. `/capture-you <内容>` — 直接记录任意内容
-3. `/capture-you query <关键词>` — 搜索历史
-4. `/capture-you review week` — 生成周报
-5. `/capture-you profile` — 查看性格画像
-6. `/capture-you stat` — 查看统计
-7. `/capture-you projects` — 查看项目列表
-8. `/capture-you projects export` — 导出项目 Markdown
+1. `/capture-me init` — 初始化用户画像（多步问卷）
+2. `/capture-me <内容>` — 直接记录任意内容
+3. `/capture-me query <关键词>` — 搜索历史
+4. `/capture-me review week` — 生成周报
+5. `/capture-me profile` — 查看性格画像
+6. `/capture-me stat` — 查看统计
+7. `/capture-me projects` — 查看项目列表
+8. `/capture-me projects export` — 导出项目 Markdown

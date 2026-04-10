@@ -49,8 +49,8 @@ check_dirs() {
   echo "✅ $SKILL_DIR/sqlite"
 
   # 日志目录
-  mkdir -p ~/.capture-you/logs
-  echo "✅ ~/.capture-you/logs"
+  mkdir -p ~/.capture-me/logs
+  echo "✅ ~/.capture-me/logs"
 }
 
 # 安装 npm 依赖
@@ -92,7 +92,7 @@ run_tests() {
 
   cd "$SKILL_DIR"
 
-  if npm test 2>&1 | tee /tmp/capture-you-test-output.txt; then
+  if npm test 2>&1 | tee /tmp/capture-me-test-output.txt; then
     echo ""
     echo "✅ 所有测试通过!"
   else

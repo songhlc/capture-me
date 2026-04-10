@@ -246,18 +246,18 @@ async function main() {
   const input = args.join(' ');
   if (!input) {
     console.log('用法:');
-    console.log('  /capture-you <内容>    # 记录内容');
-    console.log('  /capture-you init      # 初始化');
-    console.log('  /capture-you profile   # 查看画像');
-    console.log('  /capture-you stat     # 查看统计');
-    console.log('  /capture-you review   # 生成复盘');
+    console.log('  /capture-me <内容>    # 记录内容');
+    console.log('  /capture-me init      # 初始化');
+    console.log('  /capture-me profile   # 查看画像');
+    console.log('  /capture-me stat     # 查看统计');
+    console.log('  /capture-me review   # 生成复盘');
     return;
   }
 
   // 首次使用检查
   if (!isSetupComplete()) {
     console.log('\n✨ 欢迎使用知己！');
-    console.log('  首次使用，建议先运行 `/capture-you init` 完成初始化\n');
+    console.log('  首次使用，建议先运行 `/capture-me init` 完成初始化\n');
   } else {
     const profile = getProfile();
     if (profile) {
@@ -274,9 +274,11 @@ async function main() {
   console.log(`  ID：${result.id}`);
   console.log();
 
-  // 检查成就
-  const achNotify = checkAndNotify();
-  if (achNotify) console.log(achNotify);
+  // 异步检查成就，不阻塞主流程
+  setImmediate(() => {
+    const achNotify = checkAndNotify();
+    if (achNotify) console.log(achNotify);
+  });
 
   // 输出解析指令（让大模型知道如何处理）
   console.log(outputParseInstructions(input, result.id));

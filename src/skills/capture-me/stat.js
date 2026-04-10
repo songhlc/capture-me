@@ -116,7 +116,150 @@ function generateInsight(stats) {
   return insights;
 }
 
-// ─── 数据获取 ────────────────────────────────────────────
+// ─── 空数据兜底 ─────────────────────────────────────────
+
+function getEmptyStats() {
+  return {
+    totalNotes: 0, weekNotes: 0, weekDelta: 0, monthNotes: 0,
+    totalTodos: 0, pendingTodos: 0, completedTodos: 0, overdueTodos: 0,
+    weekTodos: 0, weekTodosDone: 0,
+    categories: [], dailyTrend: [], allDates: [], topEmotion: '平缓',
+    streak: { current: 0, longest: 0, todayHas: false },
+  };
+}
+
+// ─── 错误隔离 ────────────────────────────────────────────
+
+function safeQuery(promise, fallback) {
+  return promise
+    .then(r => r)
+    .catch(err => { console.error('Query failed:', err.message); return fallback; });
+}
+
+// ─── 优化查询（3 个并行） ─────────────────────────────────
+
+/**
+ * Query A: 10 个 COUNT 合并为 1 个
+ */
+function queryCounts(db, today, mondayStr, lastMondayStr, lastSundayStr, monthStart) {
+  return db.prepare(`
+    SELECT
+      COUNT(*) as totalNotes,
+      SUM(CASE WHEN date >= ? THEN 1 ELSE 0 END) as weekNotes,
+      SUM(CASE WHEN date >= ? AND date <= ? THEN 1 ELSE 0 END) as weekNotesLast,
+      SUM(CASE WHEN date >= ? THEN 1 ELSE 0 END) as monthNotes,
+      SUM(CASE WHEN is_todo = 1 THEN 1 ELSE 0 END) as totalTodos,
+      SUM(CASE WHEN is_todo = 1 AND todo_done = 0 THEN 1 ELSE 0 END) as pendingTodos,
+      SUM(CASE WHEN is_todo = 1 AND todo_done = 1 THEN 1 ELSE 0 END) as completedTodos,
+      SUM(CASE WHEN is_todo = 1 AND todo_done = 0 AND todo_due < ? THEN 1 ELSE 0 END) as overdueTodos,
+      SUM(CASE WHEN is_todo = 1 AND date >= ? THEN 1 ELSE 0 END) as weekTodos,
+      SUM(CASE WHEN is_todo = 1 AND todo_done = 1 AND date >= ? THEN 1 ELSE 0 END) as weekTodosDone
+    FROM notes
+  `).get(mondayStr, lastMondayStr, lastSundayStr, monthStart, today, mondayStr, mondayStr);
+}
+
+/**
+ * Query B: categories（无日期过滤，匹配原有逻辑）
+ * 原有 categories 查询：SELECT category, COUNT(*) as c FROM notes WHERE category IS NOT NULL GROUP BY category ORDER BY c DESC
+ */
+function queryCategories(db) {
+  return db.prepare(`
+    SELECT category, COUNT(*) as c
+    FROM notes
+    WHERE category IS NOT NULL
+    GROUP BY category
+    ORDER BY c DESC
+  `).all();
+}
+
+/**
+ * Query D: dailyTrend + allDates 合并
+ * dailyTrend: ALL notes by date（无 category 过滤），allDates: 仅 30 天内的日期
+ */
+function queryDailyAndDates(db, thirtyDaysAgoStr) {
+  const dailyRows = db.prepare(`
+    SELECT date, COUNT(*) as count
+    FROM notes
+    WHERE date >= ?
+    GROUP BY date
+    ORDER BY date
+  `).all(thirtyDaysAgoStr);
+
+  // allDates 从 dailyTrend 提取（保持 30 天过滤）
+  const allDates = dailyRows.map(r => r.date).reverse();
+
+  return { dailyTrend: dailyRows, allDates };
+}
+
+/**
+ * Query C: recent30 情绪数据
+ */
+function queryRecent30(db, thirtyDaysAgoStr) {
+  return db.prepare(`SELECT ai_summary, raw_text FROM notes WHERE date >= ?`).all(thirtyDaysAgoStr);
+}
+
+// ─── 情绪计算（复用） ─────────────────────────────────────
+
+function computeTopEmotion(recent30) {
+  const posWords = ['开心', '顺利', '完成', '成功', '高兴', '兴奋', '满意', '突破', '进展', '不错'];
+  const negWords = ['焦虑', '压力', '担忧', '烦恼', '郁闷', '沮丧', '累', '疲惫', '难'];
+  let pos = 0, neg = 0;
+  for (const n of recent30) {
+    const text = (n.ai_summary || '') + (n.raw_text || '');
+    if (posWords.some(w => text.includes(w))) pos++;
+    if (negWords.some(w => text.includes(w))) neg++;
+  }
+  return pos > neg ? '积极' : neg > pos ? '低落' : '平缓';
+}
+
+// ─── 优化版：getStatsAsync ────────────────────────────────
+
+function getStatsAsync() {
+  const db = ensureDb();
+  if (!db) return Promise.resolve(getEmptyStats());
+
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const dayOfWeek = now.getDay() || 7;
+  const monday = new Date(now); monday.setDate(now.getDate() - dayOfWeek + 1);
+  const mondayStr = monday.toISOString().split('T')[0];
+  const lastMonday = new Date(monday); lastMonday.setDate(monday.getDate() - 7);
+  const lastSunday = new Date(monday); lastSunday.setDate(monday.getDate() - 1);
+  const lastMondayStr = lastMonday.toISOString().split('T')[0];
+  const lastSundayStr = lastSunday.toISOString().split('T')[0];
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const thirtyDaysAgo = new Date(now); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+  // 4 个并行查询（categories 独立，其余 3 并行）
+  return Promise.all([
+    safeQuery(Promise.resolve(queryCounts(db, today, mondayStr, lastMondayStr, lastSundayStr, monthStart)), {}),
+    safeQuery(Promise.resolve(queryCategories(db)), []),
+    safeQuery(Promise.resolve(queryDailyAndDates(db, thirtyDaysAgoStr)), { dailyTrend: [], allDates: [] }),
+    safeQuery(Promise.resolve(queryRecent30(db, thirtyDaysAgoStr)), []),
+  ]).then(([counts, categories, dailyAndDates, recent30]) => {
+    db.close();
+
+    const {
+      totalNotes = 0, weekNotes = 0, weekNotesLast = 0, monthNotes = 0,
+      totalTodos = 0, pendingTodos = 0, completedTodos = 0, overdueTodos = 0,
+      weekTodos = 0, weekTodosDone = 0,
+    } = counts;
+
+    const { dailyTrend = [], allDates = [] } = dailyAndDates;
+    const topEmotion = computeTopEmotion(recent30);
+
+    return {
+      totalNotes, weekNotes, weekDelta: weekNotes - weekNotesLast, monthNotes,
+      totalTodos, pendingTodos, completedTodos, overdueTodos,
+      weekTodos, weekTodosDone,
+      categories, dailyTrend, allDates, topEmotion,
+      streak: calcStreak(allDates),
+    };
+  });
+}
+
+// ─── 数据获取（原有同步版本，保留用于回滚） ──────────────────
 
 function getStats(db) {
   const now = new Date();
@@ -197,7 +340,7 @@ function formatStats(stats) {
   const lines = [];
   lines.push('');
   lines.push(`\x1b[36m╔${bd}╗\x1b[0m`);
-  lines.push(`\x1b[36m║\x1b[0m  \x1b[1;36m📊 CAPTURE-YOU 仪表盘\x1b[0m  \x1b[36m${bd.slice(22)}║\x1b[0m`);
+  lines.push(`\x1b[36m║\x1b[0m  \x1b[1;36m📊 CAPTURE-ME 仪表盘\x1b[0m  \x1b[36m${bd.slice(22)}║\x1b[0m`);
   lines.push(`\x1b[36m╠${bd}╣\x1b[0m`);
 
   // ── 连续记录 ──
@@ -290,7 +433,7 @@ function formatStats(stats) {
   }
 
   lines.push(`\x1b[36m╠${bd}╣\x1b[0m`);
-  lines.push(`\x1b[36m║\x1b[0m  \x1b[2m统计于 ${today}  |  capture-you\x1b[0m${' '.repeat(19)}\x1b[36m║\x1b[0m`);
+  lines.push(`\x1b[36m║\x1b[0m  \x1b[2m统计于 ${today}  |  capture-me\x1b[0m${' '.repeat(19)}\x1b[36m║\x1b[0m`);
   lines.push(`\x1b[36m╚${bd}╝\x1b[0m`);
   lines.push('');
 
@@ -304,7 +447,7 @@ if (require.main === module) {
   if (!db) {
     const bd = '━'.repeat(50);
     console.log(`\n\x1b[36m╔${bd}╗\x1b[0m`);
-    console.log(`\x1b[36m║\x1b[0m  \x1b[1m📊 CAPTURE-YOU 仪表盘\x1b[0m${' '.repeat(25)}\x1b[36m║\x1b[0m`);
+    console.log(`\x1b[36m║\x1b[0m  \x1b[1m📊 CAPTURE-ME 仪表盘\x1b[0m${' '.repeat(25)}\x1b[36m║\x1b[0m`);
     console.log(`\x1b[36m╠${bd}╣\x1b[0m`);
     console.log(`\x1b[36m║\x1b[0m  \x1b[90m暂无数据，请先记录一些内容\x1b[0m${' '.repeat(19)}\x1b[36m║\x1b[0m`);
     console.log(`\x1b[36m╚${bd}╝\x1b[0m\n`);
@@ -315,4 +458,4 @@ if (require.main === module) {
   console.log(formatStats(stats));
 }
 
-module.exports = { getStats, formatStats, calcStreak, makeSparkline };
+module.exports = { getStats, getStatsAsync, formatStats, calcStreak, makeSparkline, getEmptyStats };

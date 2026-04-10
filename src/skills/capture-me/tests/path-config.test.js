@@ -53,7 +53,7 @@ describe('路径配置 — MEMORY_DIR 必须指向 skill 本地目录', () => {
     test(`${file}: DB_PATH 不应回指上一级目录`, () => {
       const content = fs.readFileSync(filePath, 'utf-8');
 
-      // DB_PATH 不应该包含 ../.claude/skills/capture-you 这样的回溯路径
+      // DB_PATH 不应该包含 ../.claude/skills/capture-me 这样的回溯路径
       // 正确做法是 path.join(__dirname, 'sqlite', 'capture.db')
       expect(content).not.toMatch(/DB_PATH.*\.\.\/\.claude/);
     });
@@ -122,7 +122,7 @@ describe('路径配置 — 验证实际路径解析', () => {
 
   test('skill 目录下的 memory 路径不指向项目根目录 memory/', () => {
     // 从 capture.js 的 __dirname 加上 'memory' 得到的路径
-    // 这个路径应该以 capture-you/memory 结尾，而非直接是项目根 memory/
+    // 这个路径应该以 capture-me/memory 结尾，而非直接是项目根 memory/
     const skillMemory = path.join(__dirname, '..', 'memory');
     const projectRootMemory = path.join(__dirname, '..', '..', '..', 'memory');
 

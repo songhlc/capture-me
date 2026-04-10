@@ -1,11 +1,11 @@
 #!/bin/bash
-# init-db.sh — 初始化 capture-you 数据库
+# init-db.sh — 初始化 capture-me 数据库
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 DB_DIR="$SKILL_DIR/sqlite"
 
-echo "📦 初始化 capture-you 数据库..."
+echo "📦 初始化 capture-me 数据库..."
 
 # 创建目录
 mkdir -p "$DB_DIR"

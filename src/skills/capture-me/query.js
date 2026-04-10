@@ -35,16 +35,14 @@ function searchInMarkdown(keyword, limit = 10) {
   const content = fs.readFileSync(CAPTURE_LOG, 'utf-8');
   const lines = content.split('\n');
   const results = [];
-  let currentEntry = null;
   const keywordLower = keyword.toLowerCase();
 
   for (const line of lines) {
     if (line.startsWith('> ') && line.toLowerCase().includes(keywordLower)) {
-      currentEntry = {
+      results.push({
         text: line.replace(/^> /, '').replace(/ — .*$/, ''),
         raw: line,
-      };
-      results.push(currentEntry);
+      });
       if (results.length >= limit) break;
     }
   }
@@ -169,6 +167,36 @@ function query(keyword, limit = 20) {
   return formatResults(sqliteResults, markdownResults, keyword);
 }
 
+/**
+ * 优化版：SQLite + Markdown 搜索并行执行
+ */
+async function queryAsync(keyword, limit = 20) {
+  const db = ensureDb();
+
+  // Special handling for todos command
+  if (keyword === 'todos' && db) {
+    const todos = getAllTodos(db);
+    db.close();
+    return formatTodosTable(todos);
+  }
+
+  // 并行执行 SQLite + Markdown 搜索
+  const [sqliteResults, markdownResults] = await Promise.all([
+    db
+      ? new Promise(resolve => {
+          const results = searchInSqlite(db, keyword, limit);
+          db.close();
+          resolve(results);
+        })
+      : Promise.resolve([]),
+    new Promise(resolve => {
+      resolve(searchInMarkdown(keyword, Math.floor(limit / 2)));
+    }),
+  ]);
+
+  return formatResults(sqliteResults, markdownResults, keyword);
+}
+
 // CLI
 if (require.main === module) {
   const keyword = process.argv.slice(2).join(' ');
@@ -176,7 +204,7 @@ if (require.main === module) {
     console.log('用法: node query.js "<关键词>"');
     process.exit(1);
   }
-  console.log(query(keyword));
+  queryAsync(keyword).then(output => console.log(output));
 }
 
-module.exports = { query, searchInSqlite };
+module.exports = { query, queryAsync, searchInSqlite };

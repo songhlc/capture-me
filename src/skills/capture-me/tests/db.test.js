@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 
 // 测试用临时数据库
-const TEST_DB_DIR = path.join(os.tmpdir(), 'capture-you-db-test');
+const TEST_DB_DIR = path.join(os.tmpdir(), 'capture-me-db-test');
 const TEST_DB_PATH = path.join(TEST_DB_DIR, 'test-capture.db');
 
 // 在加载模块前设置测试路径
