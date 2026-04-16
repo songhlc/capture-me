@@ -31,16 +31,20 @@
     "stat": "node stat.js",
     "query": "node query.js"
   },
-  "keywords": ["capture", "notes", "ai", "productivity", "claude-skill"],
+  "keywords": [
+    "capture",
+    "notes",
+    "ai",
+    "productivity",
+    "claude-skill"
+  ],
   "author": "windknow",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
   },
-  "dependencies": {
-    "better-sqlite3": "^9.4.3"
-  },
   "devDependencies": {
+    "better-sqlite3": "^12.9.0",
     "jest": "^29.7.0"
   }
 }

@@ -16,19 +16,147 @@
 
 ## 安装
 
-### 方式一：Claude Code 用户
+本项目包含两个技能和一个 Hook：
+
+| 组件 | 说明 |
+|------|------|
+| `capture-me` | 主技能：随手记录 + 复盘 + 画像 |
+| `capture-me-observer` | 被动观察：静默收集对话中的画像信号 |
+| `hooks/capture-me-observer` | OpenClaw Hook：拦截消息并调用 observer |
+
+### Claude Code 用户
 
 ```bash
-# 1. 复制 skill 到你的 Claude Code 配置目录
-cp -r src/skills ~/.claude/skills/capture-me
+# 1. 复制主技能
+cp -r src/skills/capture-me ~/.claude/skills/
 
-# 2. 重启 Claude Code
-# 3. 输入 /capture-me 开始使用
+# 2. （可选）复制被动观察技能
+cp -r src/skills/capture-me-observer ~/.claude/skills/
+
+# 3. 复制自动观察 Prompt（启用被动收集）
+cp src/skills/capture-me-observer/CLAUDE.md ~/.claude/CLAUDE.md
+
+# 4. 重启 Claude Code
+# 5. 输入 /capture-me 开始使用
 ```
 
-### 方式二：OpenClaw 用户（推荐）
+> **自动观察说明**：将 `CLAUDE.md` 内容追加到你的 `~/.claude/CLAUDE.md` 中，AI 会自动在对话中提取画像信号并静默写入数据库。每次对话都会自动收集，无需手动触发。
 
-和openclaw说：请帮我安装这个skills：https://github.com/songhlc/capture-me
+### OpenClaw 用户
+
+```bash
+# 方式一：让 OpenClaw 自动安装
+请帮我安装这个 skills：https://github.com/songhlc/capture-me
+
+# 方式二：手动安装所有组件
+# 安装主技能
+cp -r src/skills/capture-me ~/.openclaw/skills/
+# 安装被动观察技能
+cp -r src/skills/capture-me-observer ~/.openclaw/skills/
+# 安装 Hook（自动拦截消息并收集画像信号）
+cp -r src/hooks/capture-me-observer ~/.openclaw/hooks/
+```
+
+### Hermes 用户
+
+```bash
+# 复制主技能
+cp -r src/skills/capture-me ~/.hermes/skills/
+# 复制被动观察技能
+cp -r src/skills/capture-me-observer ~/.hermes/skills/
+# 复制自动观察 Prompt（启用被动收集）
+cat src/skills/capture-me-observer/HERMES.md >> ~/.hermes/config/prompt.md
+```
+
+> **自动观察说明**：将 Hermes 的 Prompt 内容追加到你的 Hermes 系统配置中，AI 会自动在对话中提取画像信号并静默写入数据库。
+
+### 初始化
+
+安装后运行初始化，完成用户画像设置：
+
+```
+/capture-me init
+```
+
+---
+
+## 组件说明
+
+### capture-me（主技能）
+
+主动记录模式。你主动输入 `/capture-me <内容>` 进行记录。
+
+**功能：**
+- 随手记录：日记、工作、想法、待办
+- AI 解析：意图识别、实体提取、标签生成
+- 周报/月报生成
+- 性格画像分析
+- 承诺追踪
+
+### capture-me-observer（被动观察技能）
+
+静默收集模式。在你与 AI 对话时，自动分析并提取画像信号（工作/生活/偏好/情绪），写入同一数据库。
+
+**在 OpenClaw 环境中：** 自动通过 Hook 拦截消息，无需额外操作。
+
+**在 Claude Code 环境中：** 需将 `CLAUDE.md` 中的 Prompt 追加到 `~/.claude/CLAUDE.md`，AI 会自动在对话中提取信号。
+
+**在 Hermes 环境中：** 需将 `HERMES.md` 中的 Prompt 追加到 Hermes 系统配置，AI 会自动在对话中提取信号。
+
+**信号维度：**
+- work、life、habit、emotion、preference、goal、relation、health
+
+### hooks/capture-me-observer（OpenClaw Hook）
+
+消息拦截器。部署在 OpenClaw 环境时，自动拦截每条用户消息，调用 observer 提取信号并静默写入数据库。
+
+---
+
+## 使用方法
+
+### 核心命令
+
+| 命令 | 功能 |
+|------|------|
+| `/capture-me <内容>` | 随手记录任意内容 |
+| `/capture-me init` | 初始化用户画像 |
+| `/capture-me profile` | 查看性格画像 |
+| `/capture-me stat` | 查看统计信息 |
+| `/capture-me review week` | 生成周报 |
+| `/capture-me review month` | 生成月报 |
+| `/capture-me query <关键词>` | 搜索历史记录 |
+| `/capture-me query todos` | 查看所有待办 |
+| `/capture-me projects` | 查看项目列表 |
+| `/capture-me projects export` | 导出项目到 Markdown |
+| `/capture-me why <问题>` | 5 Why 追问 |
+| `/capture-me brainstorm` | 头脑风暴 |
+| `/capture-me personality` | 大五人格 + MBTI 分析 |
+| `/capture-me blindspot` | 盲区探测 |
+| `/capture-me trigger` | 主动触发检查 |
+| `/capture-me dashboard` | 打开 Web 仪表盘 |
+| `/capture-me config [get\|set\|list]` | 配置管理 |
+| `/capture-me mirror` | 镜子状态/承诺追踪 |
+
+### 自动观察（OpenClaw + Claude Code + Hermes）
+
+**OpenClaw：** Hook 部署后自动生效，无需手动操作。
+
+**Claude Code：** 追加 `CLAUDE.md` Prompt 到 `~/.claude/CLAUDE.md` 后自动生效。
+
+**Hermes：** 追加 `HERMES.md` Prompt 到 Hermes 系统配置后自动生效。
+
+查看状态：
+
+```bash
+# OpenClaw 查看观察者状态
+node ~/.openclaw/hooks/capture-me-observer/observe.js
+
+# OpenClaw 查看信号统计
+node ~/.openclaw/hooks/capture-me-observer/observe.js --stat
+
+# Claude Code 查看信号（通过主技能）
+/capture-me stat
+```
 
 
 ## 适合谁用
