@@ -92,7 +92,7 @@ observer.uninstall(event)
 
 1. `scheduler.detect()` 探测环境（openclaw / hermas / 无）→ 选对应 adapter
 2. `notifier.detect()` 探测飞书/Notion 通道（用户 config.yaml 或环境变量）
-3. 注册 3 个 cron 任务（见 §6）
+3. 注册 4 个 cron 任务（见 §6）
 4. 安装 observer hook（如适用）
 5. 报告：哪些已注册、哪些被跳过、通道是否就绪
 
@@ -100,7 +100,7 @@ observer.uninstall(event)
 
 ## 3. 数据模型
 
-新增 4 张表（位于 `~/.claude/skills/capture-me/sqlite/capture.db`）。
+新增 5 张表（位于 `~/.claude/skills/capture-me/sqlite/capture.db`）。
 
 ```sql
 -- 一周一条
@@ -231,7 +231,8 @@ CREATE TABLE weekly_reports (
       "config": {
         "title": "⚠️ 风险和阻塞",
         "source": "week_plan_items.status=blocked + notes with @risk/阻塞/风险/卡住",
-        "row_template": "- {description} _(影响: {impact}, 需: {need})_"
+        "row_template": "- {description} _(影响: {impact}, 需: {need})_",
+        "extraction": "{impact} 和 {need} 在 render 时由 LLM 从 {description} 提取；若无法提取则填空字符串"
       }
     },
     {
@@ -240,15 +241,17 @@ CREATE TABLE weekly_reports (
         "title": "📂 所有推进项目总览",
         "source": "projects where status=active",
         "columns": ["项目", "进度", "状态", "负责人", "截止"],
-        "row_template": "| {name} | {progress_bar} {progress}% | {status} | {assignee} | {deadline} |"
+        "row_template": "| {name} | {progress_bar} {progress}% | {status} | {assignee} | {deadline} |",
+        "rendering": "{progress_bar} 由 {progress} 整数（0-100）按 10 字符宽度渲染：'████████░░' = 80%"
       }
     },
     {
       "type": "next_week",
       "config": {
         "title": "🚧 下周重点事项",
-        "source": "auto: week_plan_items.status IN (pending, partial)",
-        "row_template": "- {title} _(本周: {status})_"
+        "source": "auto: week_plan_items.status IN (pending, partial) FROM THIS WEEK'S PLAN",
+        "row_template": "- {title} _(本周: {status})_",
+        "rendering": "时序：周六 18:00 渲染报告时，carryover 尚未发生（下周日 23:00 才执行），所以'本周未完成'=='下周重点'；用户周六看到的就是下周要继续的事"
       }
     }
   ]
@@ -303,7 +306,7 @@ CREATE TABLE weekly_reports (
 用户选择 → 写入 `config.yaml` `capture-me.channels.enabled`。
 后续改：`/capture-me channels` 重新设置。
 
-**carryover 逻辑**：上周日 23:00 自动跑一次 carryover 计算（`scheduler` 加 `wp-carryover` cron，`0 23 * * 0`），把 status IN (pending, partial, blocked) 的项复制到下周 plan 的 items（保留原 item id，**复制**而非引用，便于独立更新）。
+**carryover 逻辑**：上周日 23:00 自动跑一次 carryover 计算（`scheduler` 加 `wp-carryover` cron，`0 23 * * 0`），把上周 plan 里 status IN (pending, partial, blocked) 的项**创建新 item**（生成新 wpi_id）写入下周 plan；原 item 不动（保留为历史记录），新 item 继承 title/description/project/priority/assignee/expected_outcome，新 status 重置为 'pending'。
 
 ---
 
