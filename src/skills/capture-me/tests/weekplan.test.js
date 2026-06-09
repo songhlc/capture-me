@@ -161,3 +161,46 @@ describe('week_plan_updates CRUD', () => {
     expect(updates[1].update_date).toBe('2026-06-10');
   });
 });
+
+const { getOrCreateCurrentWeekPlan, getCurrentWeekPlan } = require('../lib/weekplan');
+
+describe('weekplan.getOrCreateCurrentWeekPlan', () => {
+  // Clean up any plan for the current ISO week that was created by earlier
+  // describes in this file, so test 1 (which asserts the just-created plan's
+  // initial status) starts from a fresh state.
+  beforeAll(() => {
+    const { getIsoWeek } = require('../lib/iso-week');
+    const { weekIso } = getIsoWeek(new Date());
+    const existing = db.getWeekPlanByIso(weekIso);
+    if (existing) {
+      const Database = require('better-sqlite3');
+      const conn = new Database(process.env.CAPTURE_YOU_TEST_DB_PATH);
+      conn.prepare('DELETE FROM week_plan_updates WHERE plan_id = ?').run(existing.id);
+      conn.prepare('DELETE FROM week_plan_items WHERE plan_id = ?').run(existing.id);
+      conn.prepare('DELETE FROM week_plans WHERE id = ?').run(existing.id);
+      conn.close();
+    }
+  });
+
+  test('creates a plan for the current ISO week if none exists', () => {
+    const plan = getOrCreateCurrentWeekPlan();
+    expect(plan).toBeDefined();
+    expect(plan.week_iso).toMatch(/^\d{4}-W\d{2}$/);
+    expect(plan.status).toBe('planning');
+  });
+
+  test('returns existing plan on second call (idempotent)', () => {
+    const p1 = getOrCreateCurrentWeekPlan();
+    const p2 = getOrCreateCurrentWeekPlan();
+    expect(p2.id).toBe(p1.id);
+  });
+
+  test('plan dates are Mon-Fri of the ISO week', () => {
+    const p = getOrCreateCurrentWeekPlan();
+    const start = new Date(p.start_date + 'T00:00:00');
+    const end = new Date(p.end_date + 'T00:00:00');
+    // 0=Sun, 1=Mon, ..., 6=Sat
+    expect(start.getDay()).toBe(1); // Monday
+    expect(end.getDay()).toBe(5);   // Friday
+  });
+});
