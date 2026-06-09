@@ -8,6 +8,7 @@
     "capture.js",
     "setup.js",
     "review.js",
+    "lib/weekplan.js",
     "profile.js",
     "stat.js",
     "query.js",
@@ -29,7 +30,8 @@
     "review:month": "node review.js month",
     "profile": "node profile.js",
     "stat": "node stat.js",
-    "query": "node query.js"
+    "query": "node query.js",
+    "weekplan": "node lib/weekplan.js"
   },
   "keywords": [
     "capture",

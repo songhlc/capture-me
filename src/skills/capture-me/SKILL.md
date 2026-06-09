@@ -156,6 +156,7 @@ AI摘要：近期身体状态不佳
 | `stat` | 查看记录统计 |
 | `projects [状态]` | 查看项目列表（active/paused/all） |
 | `projects export` | 导出项目列表到 Markdown |
+| `weekplan [create\|list\|show\|skip\|checkin]` | Week Plan 模式（周一规划、每日 check-in、自动 carryover）|
 
 ---
 
