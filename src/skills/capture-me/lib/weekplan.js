@@ -47,7 +47,36 @@ function getCurrentWeekPlan() {
   return db.getWeekPlanByIso(weekIso);
 }
 
+/**
+ * 向 plan 添加一项计划。
+ * @param {string} planId
+ * @param {object} item - { title, description?, project?, priority?, assignee?, expected_outcome? }
+ * @returns {string} item id
+ */
+function addItem(planId, item) {
+  const existing = db.getWeekPlanItems(planId);
+  return db.insertWeekPlanItem({
+    ...item,
+    plan_id: planId,
+    sort_order: existing.length,
+  });
+}
+
+/**
+ * 读取 plan + 其所有 items 的完整对象。
+ * @param {string} planId
+ * @returns {{plan: object, items: object[]}|null}
+ */
+function getPlanWithItems(planId) {
+  const plan = db.getWeekPlan(planId);
+  if (!plan) return null;
+  const items = db.getWeekPlanItems(planId);
+  return { plan, items };
+}
+
 module.exports = {
   getOrCreateCurrentWeekPlan,
   getCurrentWeekPlan,
+  addItem,
+  getPlanWithItems,
 };

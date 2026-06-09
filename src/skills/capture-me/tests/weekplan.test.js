@@ -204,3 +204,25 @@ describe('weekplan.getOrCreateCurrentWeekPlan', () => {
     expect(end.getDay()).toBe(5);   // Friday
   });
 });
+
+const { addItem, getPlanWithItems } = require('../lib/weekplan');
+
+describe('weekplan.addItem', () => {
+  test('adds a new item to a plan', () => {
+    const plan = getOrCreateCurrentWeekPlan();
+    const itemId = addItem(plan.id, {
+      title: '测试 item',
+      priority: 'P1',
+      assignee: '我',
+    });
+    expect(itemId).toMatch(/^wpi_/);
+  });
+
+  test('appends items to the same plan', () => {
+    const plan = getOrCreateCurrentWeekPlan();
+    addItem(plan.id, { title: 'item 2' });
+    addItem(plan.id, { title: 'item 3' });
+    const full = getPlanWithItems(plan.id);
+    expect(full.items.length).toBeGreaterThanOrEqual(3);
+  });
+});
