@@ -300,3 +300,45 @@ describe('weekplan.generateCheckinMessage', () => {
     expect(text).toMatch(/2\..*修合同 bug/);
   });
 });
+
+const { carryoverFromLastWeek, getOrCreateWeekPlan } = require('../lib/weekplan');
+
+describe('weekplan.carryoverFromLastWeek', () => {
+  test('copies unfinished items from last week to a new plan', () => {
+    // Create last week's plan
+    const last = getOrCreateWeekPlan(2026, 23);
+    addItem(last.id, { title: '未完成项 1', priority: 'P0' });
+    addItem(last.id, { title: '已完成项', priority: 'P1' });
+    // Mark one as done, one stays pending
+    const items = db.getWeekPlanItems(last.id);
+    db.updateWeekPlanItemStatus(items[1].id, 'done');
+
+    // Create this week's plan
+    const current = getOrCreateWeekPlan(2026, 24);
+    const beforeCount = db.getWeekPlanItems(current.id).length;
+
+    const copied = carryoverFromLastWeek(2026, 24);
+    expect(copied).toBe(1); // Only the pending one
+
+    const currentItems = db.getWeekPlanItems(current.id);
+    expect(currentItems.length).toBe(beforeCount + 1);
+    const copiedItem = currentItems.find((it) => it.title === '未完成项 1');
+    expect(copiedItem).toBeDefined();
+    expect(copiedItem.status).toBe('pending'); // Reset to pending
+    expect(copiedItem.priority).toBe('P0');
+  });
+
+  test('creates new item ids (does not reuse old ones)', () => {
+    const last = getOrCreateWeekPlan(2026, 23);
+    addItem(last.id, { title: 'old item' });
+    const oldItem = db.getWeekPlanItems(last.id)[0];
+
+    getOrCreateWeekPlan(2026, 24); // ensure current exists
+    carryoverFromLastWeek(2026, 24);
+
+    const currentItems = db.getWeekPlanItems(`wp_2026_w24`);
+    const copied = currentItems.find((it) => it.title === 'old item');
+    expect(copied.id).not.toBe(oldItem.id);
+    expect(copied.id).toMatch(/^wpi_/);
+  });
+});

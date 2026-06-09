@@ -153,12 +153,88 @@ function generateCheckinMessage(planId) {
   return lines.join('\n');
 }
 
+/**
+ * 获取或创建指定 ISO 周的 plan（用于测试和 carryover）。
+ * @param {number} year
+ * @param {number} weekNum
+ * @returns {object} week_plans row
+ */
+function getOrCreateWeekPlan(year, weekNum) {
+  const weekIso = `${year}-W${String(weekNum).padStart(2, '0')}`;
+  const { startDate, endDate } = getWeekBounds(year, weekNum);
+  const existing = db.getWeekPlanByIso(weekIso);
+  if (existing) return existing;
+  const id = `wp_${year}_w${String(weekNum).padStart(2, '0')}`;
+  db.insertWeekPlan({
+    id,
+    week_iso: weekIso,
+    year,
+    week_num: weekNum,
+    start_date: startDate,
+    end_date: endDate,
+    status: 'planning',
+  });
+  return db.getWeekPlan(id);
+}
+
+/**
+ * 从上一周（year/weekNum-1）复制未完成的 item 到本周 plan。
+ * - 只复制 status IN (pending, partial, blocked) 的项
+ * - 创建新的 item id（不复用旧的，便于独立更新）
+ * - 新 item 的 status 重置为 'pending'
+ * - 继承 title/description/project/priority/assignee/expected_outcome
+ * @param {number} currentYear
+ * @param {number} currentWeekNum
+ * @returns {number} 复制的 item 数量
+ */
+function carryoverFromLastWeek(currentYear, currentWeekNum) {
+  // Compute last week's (year, weekNum)
+  const { getNextWeekBounds } = require('./iso-week');
+  // Use bounds of current week, then subtract 7 days to get last week
+  const cur = getWeekBounds(currentYear, currentWeekNum);
+  const lastMonday = new Date(cur.startDate + 'T00:00:00Z');
+  lastMonday.setUTCDate(lastMonday.getUTCDate() - 7);
+  const last = getIsoWeek(lastMonday);
+
+  const lastPlan = db.getWeekPlanByIso(last.weekIso);
+  if (!lastPlan) return 0;
+
+  const lastItems = db.getWeekPlanItems(lastPlan.id);
+  const unfinished = lastItems.filter((it) =>
+    ['pending', 'partial', 'blocked'].includes(it.status)
+  );
+  if (unfinished.length === 0) return 0;
+
+  // Ensure current plan exists
+  const currentPlan = getOrCreateWeekPlan(currentYear, currentWeekNum);
+  const existingCurrent = db.getWeekPlanItems(currentPlan.id);
+  let nextSort = existingCurrent.length;
+
+  for (const src of unfinished) {
+    db.insertWeekPlanItem({
+      plan_id: currentPlan.id,
+      title: src.title,
+      description: src.description,
+      project: src.project,
+      priority: src.priority,
+      assignee: src.assignee,
+      expected_outcome: src.expected_outcome,
+      status: 'pending', // Reset
+      sort_order: nextSort++,
+      source: 'weekplan', // Carryover still counts as user-planned
+    });
+  }
+  return unfinished.length;
+}
+
 module.exports = {
   getOrCreateCurrentWeekPlan,
   getCurrentWeekPlan,
+  getOrCreateWeekPlan,
   addItem,
   getPlanWithItems,
   checkinItem,
   renderPlan,
   generateCheckinMessage,
+  carryoverFromLastWeek,
 };
