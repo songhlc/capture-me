@@ -93,10 +93,72 @@ function checkinItem(args) {
   });
 }
 
+const STATUS_EMOJI = {
+  pending: '⏳',
+  partial: '🟡',
+  done: '✅',
+  blocked: '⛔',
+};
+
+/**
+ * 把 plan 渲染成可读的文本（终端展示用）。
+ * @param {string} planId
+ * @returns {string}
+ */
+function renderPlan(planId) {
+  const data = getPlanWithItems(planId);
+  if (!data) return `(plan ${planId} not found)`;
+  const { plan, items } = data;
+  const lines = [];
+  lines.push(`📋 Week Plan — ${plan.week_iso}`);
+  lines.push(`${plan.start_date} ~ ${plan.end_date}  [${plan.status}]`);
+  lines.push('');
+  if (items.length === 0) {
+    lines.push('(no items yet)');
+  } else {
+    items.forEach((it, i) => {
+      const emoji = STATUS_EMOJI[it.status] || '·';
+      const pri = it.priority ? ` (${it.priority})` : '';
+      const who = it.assignee && it.assignee !== '我' ? ` — ${it.assignee}` : '';
+      lines.push(`  ${emoji} ${i + 1}. ${it.title}${pri}${who}`);
+    });
+  }
+  return lines.join('\n');
+}
+
+/**
+ * 生成"今日 plan check-in"消息（bot 推送的文本）。
+ * @param {string} planId
+ * @returns {string}
+ */
+function generateCheckinMessage(planId) {
+  const data = getPlanWithItems(planId);
+  if (!data) return `(plan ${planId} not found)`;
+  const { plan, items } = data;
+  if (items.length === 0) return `(no items to check in for ${plan.week_iso})`;
+
+  const lines = [];
+  lines.push(`🌆 今日 plan check-in — ${plan.week_iso}`);
+  lines.push(`本周 ${items.length} 项：`);
+  items.forEach((it, i) => {
+    const emoji = STATUS_EMOJI[it.status] || '·';
+    const pri = it.priority ? ` (${it.priority})` : '';
+    const status = ` — 状态：${it.status}`;
+    lines.push(`${i + 1}. ${it.title}${pri}${emoji}${status}`);
+  });
+  lines.push('');
+  lines.push('回复如：');
+  lines.push("  - '1 完成 2 进展 60% 3 阻塞 等张总反馈'");
+  lines.push('  - 或逐项说');
+  return lines.join('\n');
+}
+
 module.exports = {
   getOrCreateCurrentWeekPlan,
   getCurrentWeekPlan,
   addItem,
   getPlanWithItems,
   checkinItem,
+  renderPlan,
+  generateCheckinMessage,
 };

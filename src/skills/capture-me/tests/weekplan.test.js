@@ -257,3 +257,46 @@ describe('weekplan.checkinItem', () => {
     expect(latest.status_after).toBe('done');
   });
 });
+
+const { renderPlan, generateCheckinMessage } = require('../lib/weekplan');
+
+describe('weekplan.renderPlan', () => {
+  test('renders plan header + items as readable text', () => {
+    const plan = getOrCreateCurrentWeekPlan();
+    // Clear items first
+    for (const it of db.getWeekPlanItems(plan.id)) {
+      db.updateWeekPlanItemStatus(it.id, 'pending');
+    }
+    addItem(plan.id, { title: '完成 Notion 集成', priority: 'P0' });
+    addItem(plan.id, { title: '修合同 bug', priority: 'P1', assignee: '张总' });
+
+    const text = renderPlan(plan.id);
+    expect(text).toContain('📋 Week Plan');
+    expect(text).toContain(plan.week_iso);
+    expect(text).toContain('完成 Notion 集成');
+    expect(text).toContain('修合同 bug');
+    expect(text).toContain('P0');
+  });
+});
+
+describe('weekplan.generateCheckinMessage', () => {
+  test('produces a check-in prompt with all items', () => {
+    const plan = getOrCreateCurrentWeekPlan();
+    // Wipe leftover items from earlier tests so the numbered list is deterministic.
+    // (db has no deleteWeekPlanItem; use direct SQL, same pattern as the
+    // getOrCreateCurrentWeekPlan beforeAll.)
+    const Database = require('better-sqlite3');
+    const conn = new Database(process.env.CAPTURE_YOU_TEST_DB_PATH);
+    conn.prepare('DELETE FROM week_plan_updates WHERE plan_id = ?').run(plan.id);
+    conn.prepare('DELETE FROM week_plan_items WHERE plan_id = ?').run(plan.id);
+    conn.close();
+    addItem(plan.id, { title: '完成 Notion 集成', priority: 'P0' });
+    addItem(plan.id, { title: '修合同 bug', priority: 'P1', assignee: '张总' });
+
+    const text = generateCheckinMessage(plan.id);
+    expect(text).toContain('🌆');
+    expect(text).toContain('check-in');
+    expect(text).toMatch(/1\..*完成 Notion 集成/);
+    expect(text).toMatch(/2\..*修合同 bug/);
+  });
+});
