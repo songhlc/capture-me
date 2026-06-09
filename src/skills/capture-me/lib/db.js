@@ -197,6 +197,91 @@ function initDb() {
     );
   `);
 
+  // ─── Week Plan 模块表 ─────────────────────────────────────
+  // 周计划主表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS week_plans (
+      id TEXT PRIMARY KEY,
+      week_iso TEXT UNIQUE NOT NULL,
+      year INTEGER NOT NULL,
+      week_num INTEGER NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      status TEXT DEFAULT 'planning',
+      carryover_from_id TEXT,
+      template_id TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  // 计划项
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS week_plan_items (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      project TEXT,
+      priority TEXT,
+      assignee TEXT DEFAULT '我',
+      expected_outcome TEXT,
+      status TEXT DEFAULT 'pending',
+      sort_order INTEGER DEFAULT 0,
+      source TEXT DEFAULT 'weekplan',
+      auto_detected_from_note_id TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_wpi_plan_id ON week_plan_items(plan_id);
+    CREATE INDEX IF NOT EXISTS idx_wpi_status ON week_plan_items(status);
+  `);
+
+  // 每日 check-in 累积
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS week_plan_updates (
+      id TEXT PRIMARY KEY,
+      item_id TEXT NOT NULL,
+      plan_id TEXT NOT NULL,
+      update_date TEXT NOT NULL,
+      status_after TEXT NOT NULL,
+      progress_note TEXT,
+      source TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_wpu_item_id ON week_plan_updates(item_id);
+    CREATE INDEX IF NOT EXISTS idx_wpu_update_date ON week_plan_updates(update_date);
+  `);
+
+  // 模板注册表（PR1 只建表，CRUD 在 PR2）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS weekly_report_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      sections_json TEXT NOT NULL,
+      is_default INTEGER DEFAULT 0,
+      is_builtin INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  // 周报渲染记录（PR1 只建表，CRUD 在 PR2）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS weekly_reports (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL,
+      template_id TEXT NOT NULL,
+      rendered_markdown TEXT NOT NULL,
+      channel_outputs TEXT,
+      status TEXT DEFAULT 'pending',
+      pushed_at TEXT,
+      error_log TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
   db.close();
   console.log('✓ 数据库初始化完成:', DB_PATH);
 }
