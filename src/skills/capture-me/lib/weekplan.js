@@ -54,6 +54,9 @@ function getCurrentWeekPlan() {
  * @returns {string} item id
  */
 function addItem(planId, item) {
+  if (!item || !item.title) {
+    throw new Error('item.title is required');
+  }
   const existing = db.getWeekPlanItems(planId);
   return db.insertWeekPlanItem({
     ...item,
@@ -188,8 +191,6 @@ function getOrCreateWeekPlan(year, weekNum) {
  * @returns {number} 复制的 item 数量
  */
 function carryoverFromLastWeek(currentYear, currentWeekNum) {
-  // Compute last week's (year, weekNum)
-  const { getNextWeekBounds } = require('./iso-week');
   // Use bounds of current week, then subtract 7 days to get last week
   const cur = getWeekBounds(currentYear, currentWeekNum);
   const lastMonday = new Date(cur.startDate + 'T00:00:00Z');

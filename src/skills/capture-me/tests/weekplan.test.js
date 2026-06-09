@@ -225,6 +225,11 @@ describe('weekplan.addItem', () => {
     const full = getPlanWithItems(plan.id);
     expect(full.items.length).toBeGreaterThanOrEqual(3);
   });
+
+  test('throws when title is missing', () => {
+    const plan = getOrCreateCurrentWeekPlan();
+    expect(() => addItem(plan.id, { priority: 'P0' })).toThrow(/title is required/);
+  });
 });
 
 const { checkinItem } = require('../lib/weekplan');
