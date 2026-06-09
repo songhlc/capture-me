@@ -89,3 +89,36 @@ describe('week_plans CRUD', () => {
     expect(p.status).toBe('active');
   });
 });
+
+describe('week_plan_items CRUD', () => {
+  const sampleItem = {
+    id: 'wpi_test_001',
+    plan_id: 'wp_2026_w24',
+    title: '完成 Notion 集成',
+    description: '把周报推送到 Notion',
+    project: '@project/capture-me',
+    priority: 'P0',
+    assignee: '我',
+    expected_outcome: 'Notion 通道可用',
+    status: 'pending',
+    sort_order: 0,
+    source: 'weekplan',
+  };
+
+  test('insertWeekPlanItem returns the id', () => {
+    const id = db.insertWeekPlanItem(sampleItem);
+    expect(id).toBe('wpi_test_001');
+  });
+
+  test('getWeekPlanItems returns items for a plan', () => {
+    const items = db.getWeekPlanItems('wp_2026_w24');
+    expect(items.length).toBe(1);
+    expect(items[0].title).toBe('完成 Notion 集成');
+  });
+
+  test('updateWeekPlanItemStatus changes status', () => {
+    db.updateWeekPlanItemStatus('wpi_test_001', 'done');
+    const items = db.getWeekPlanItems('wp_2026_w24');
+    expect(items[0].status).toBe('done');
+  });
+});

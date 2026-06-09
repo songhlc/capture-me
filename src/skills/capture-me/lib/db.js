@@ -1105,6 +1105,103 @@ function updateWeekPlanStatus(id, status) {
   db.close();
 }
 
+// ─── Week Plan Items CRUD ───────────────────────────────────
+
+function generateItemId() {
+  return `wpi_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function insertWeekPlanItem(item) {
+  const db = new Database(DB_PATH);
+  const id = item.id || generateItemId();
+  const stmt = db.prepare(`
+    INSERT INTO week_plan_items
+      (id, plan_id, title, description, project, priority, assignee, expected_outcome, status, sort_order, source, auto_detected_from_note_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  stmt.run(
+    id,
+    item.plan_id,
+    item.title,
+    item.description || null,
+    item.project || null,
+    item.priority || null,
+    item.assignee || '我',
+    item.expected_outcome || null,
+    item.status || 'pending',
+    item.sort_order || 0,
+    item.source || 'weekplan',
+    item.auto_detected_from_note_id || null
+  );
+  db.close();
+  return id;
+}
+
+function getWeekPlanItem(id) {
+  const db = new Database(DB_PATH, { readonly: true });
+  const stmt = db.prepare('SELECT * FROM week_plan_items WHERE id = ?');
+  const item = stmt.get(id);
+  db.close();
+  return item;
+}
+
+function getWeekPlanItems(planId) {
+  const db = new Database(DB_PATH, { readonly: true });
+  const stmt = db.prepare(`
+    SELECT * FROM week_plan_items
+    WHERE plan_id = ?
+    ORDER BY sort_order ASC, created_at ASC
+  `);
+  const items = stmt.all(planId);
+  db.close();
+  return items;
+}
+
+function getWeekPlanItemsByStatus(planId, status) {
+  const db = new Database(DB_PATH, { readonly: true });
+  const stmt = db.prepare(`
+    SELECT * FROM week_plan_items
+    WHERE plan_id = ? AND status = ?
+    ORDER BY sort_order ASC
+  `);
+  const items = stmt.all(planId, status);
+  db.close();
+  return items;
+}
+
+function updateWeekPlanItemStatus(id, status) {
+  const db = new Database(DB_PATH);
+  const stmt = db.prepare(`
+    UPDATE week_plan_items
+    SET status = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `);
+  stmt.run(status, id);
+  db.close();
+}
+
+function updateWeekPlanItem(id, fields) {
+  const db = new Database(DB_PATH);
+  const allowed = ['title', 'description', 'project', 'priority', 'assignee', 'expected_outcome', 'sort_order'];
+  const sets = [];
+  const vals = [];
+  for (const key of allowed) {
+    if (fields[key] !== undefined) {
+      sets.push(`${key} = ?`);
+      vals.push(fields[key]);
+    }
+  }
+  if (sets.length === 0) {
+    db.close();
+    return;
+  }
+  sets.push("updated_at = datetime('now')");
+  vals.push(id);
+  const stmt = db.prepare(`UPDATE week_plan_items SET ${sets.join(', ')} WHERE id = ?`);
+  stmt.run(...vals);
+  db.close();
+}
+
 module.exports = {
   initDb,
   insertNote,
@@ -1164,6 +1261,13 @@ module.exports = {
   getWeekPlan,
   getWeekPlanByIso,
   updateWeekPlanStatus,
+  // Week Plan Items
+  insertWeekPlanItem,
+  getWeekPlanItem,
+  getWeekPlanItems,
+  getWeekPlanItemsByStatus,
+  updateWeekPlanItemStatus,
+  updateWeekPlanItem,
 };
 
 // ─── Journey ─────────────────────────────────────────────────
