@@ -1105,6 +1105,17 @@ function updateWeekPlanStatus(id, status) {
   db.close();
 }
 
+function getAllWeekPlans() {
+  const db = new Database(DB_PATH, { readonly: true });
+  const stmt = db.prepare(`
+    SELECT * FROM week_plans
+    ORDER BY year DESC, week_num DESC
+  `);
+  const plans = stmt.all();
+  db.close();
+  return plans;
+}
+
 // ─── Week Plan Items CRUD ───────────────────────────────────
 
 function generateItemId() {
@@ -1318,6 +1329,7 @@ module.exports = {
   getWeekPlan,
   getWeekPlanByIso,
   updateWeekPlanStatus,
+  getAllWeekPlans,
   // Week Plan Items
   insertWeekPlanItem,
   getWeekPlanItem,

@@ -238,3 +238,145 @@ module.exports = {
   generateCheckinMessage,
   carryoverFromLastWeek,
 };
+
+// ─── CLI 入口 ───────────────────────────────────────────────
+
+if (require.main === module) {
+  const args = process.argv.slice(2);
+
+  function usage() {
+    console.log(`Usage: node lib/weekplan.js <command> [args]
+
+Commands:
+  create                   Create a new week plan for the current ISO week (interactive)
+  list                     List all week plans
+  show [week_iso]          Show a specific week's plan (default: current)
+  skip [week_iso]          Mark a week as skipped (vacation/OOO)
+  add-item <plan_id> --title "..." [--priority P0] [--assignee "..."]
+                           Add an item to an existing plan
+  checkin <item_id> <status> [--note "..."]
+                           Record a check-in update for an item
+  checkin-bot [plan_id]    Print the check-in message (PR1: terminal only)
+  carryover [year] [week]  Copy unfinished items from last week (default: current week)
+  render [plan_id]         Render a plan as readable text
+
+Run 'node lib/weekplan.js <command> --help' for command-specific help.
+`);
+  }
+
+  const [cmd, ...rest] = args;
+
+  if (!cmd || cmd === '--help' || cmd === '-h') {
+    usage();
+    process.exit(0);
+  }
+
+  try {
+    if (cmd === 'create') {
+      const plan = getOrCreateCurrentWeekPlan();
+      console.log(`✓ Plan created/exists: ${plan.id}`);
+      console.log(`  week_iso: ${plan.week_iso}`);
+      console.log(`  dates: ${plan.start_date} ~ ${plan.end_date}`);
+      console.log(`  status: ${plan.status}`);
+      console.log('');
+      console.log('Now run:');
+      console.log(`  node lib/weekplan.js add-item ${plan.id} --title "..." [--priority P0]`);
+    } else if (cmd === 'list') {
+      const dbLocal = require('./db');
+      const plans = dbLocal.getAllWeekPlans();
+      if (plans.length === 0) {
+        console.log('(no plans yet; run `create` first)');
+      } else {
+        plans.forEach((p) => {
+          console.log(`  ${p.id}  ${p.week_iso}  ${p.start_date}~${p.end_date}  [${p.status}]`);
+        });
+      }
+    } else if (cmd === 'show') {
+      const planId = rest[0] || getOrCreateCurrentWeekPlan().id;
+      console.log(renderPlan(planId));
+    } else if (cmd === 'skip') {
+      const weekIso = rest[0];
+      const target = weekIso
+        ? db.getWeekPlanByIso(weekIso)
+        : getCurrentWeekPlan();
+      if (!target) {
+        console.error(`(no plan found${weekIso ? ' for ' + weekIso : ''})`);
+        process.exit(1);
+      }
+      db.updateWeekPlanStatus(target.id, 'skipped');
+      console.log(`✓ ${target.id} marked as skipped`);
+    } else if (cmd === 'add-item') {
+      // Minimal arg parsing: positional plan_id + flags
+      const planId = rest[0];
+      if (!planId) {
+        console.error('Usage: add-item <plan_id> --title "..." [--priority P0] [--assignee "..."]');
+        process.exit(1);
+      }
+      const titleIdx = rest.indexOf('--title');
+      const priorityIdx = rest.indexOf('--priority');
+      const assigneeIdx = rest.indexOf('--assignee');
+      const title = titleIdx >= 0 ? rest[titleIdx + 1] : null;
+      if (!title) {
+        console.error('--title is required');
+        process.exit(1);
+      }
+      const itemId = addItem(planId, {
+        title,
+        priority: priorityIdx >= 0 ? rest[priorityIdx + 1] : null,
+        assignee: assigneeIdx >= 0 ? rest[assigneeIdx + 1] : '我',
+      });
+      console.log(`✓ Item added: ${itemId}`);
+    } else if (cmd === 'checkin') {
+      // checkin <item_id> <status> [--note "..."]
+      const itemId = rest[0];
+      const status = rest[1];
+      if (!itemId || !status) {
+        console.error('Usage: checkin <item_id> <pending|partial|done|blocked> [--note "..."]');
+        process.exit(1);
+      }
+      const validStatuses = ['pending', 'partial', 'done', 'blocked'];
+      if (!validStatuses.includes(status)) {
+        console.error(`status must be one of: ${validStatuses.join(', ')}`);
+        process.exit(1);
+      }
+      const noteIdx = rest.indexOf('--note');
+      const item = db.getWeekPlanItem(itemId);
+      if (!item) {
+        console.error(`(item ${itemId} not found)`);
+        process.exit(1);
+      }
+      checkinItem({
+        item_id: itemId,
+        plan_id: item.plan_id,
+        status_after: status,
+        progress_note: noteIdx >= 0 ? rest[noteIdx + 1] : null,
+      });
+      console.log(`✓ Check-in recorded: ${itemId} → ${status}`);
+    } else if (cmd === 'checkin-bot') {
+      const planId = rest[0] || getOrCreateCurrentWeekPlan().id;
+      console.log(generateCheckinMessage(planId));
+    } else if (cmd === 'carryover') {
+      const year = rest[0] ? parseInt(rest[0], 10) : null;
+      const week = rest[1] ? parseInt(rest[1], 10) : null;
+      let target;
+      if (year && week) {
+        target = { year, weekNum: week };
+      } else {
+        const cur = getOrCreateCurrentWeekPlan();
+        target = { year: cur.year, weekNum: cur.week_num };
+      }
+      const n = carryoverFromLastWeek(target.year, target.weekNum);
+      console.log(`✓ Carryover: ${n} item(s) copied from last week`);
+    } else if (cmd === 'render') {
+      const planId = rest[0] || getOrCreateCurrentWeekPlan().id;
+      console.log(renderPlan(planId));
+    } else {
+      console.error(`Unknown command: ${cmd}`);
+      usage();
+      process.exit(1);
+    }
+  } catch (e) {
+    console.error(`Error: ${e.message}`);
+    process.exit(1);
+  }
+}

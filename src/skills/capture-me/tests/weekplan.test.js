@@ -342,3 +342,29 @@ describe('weekplan.carryoverFromLastWeek', () => {
     expect(copied.id).toMatch(/^wpi_/);
   });
 });
+
+const { spawnSync } = require('child_process');
+
+describe('weekplan CLI', () => {
+  const CLI = path.join(__dirname, '..', 'lib', 'weekplan.js');
+
+  test('--help prints usage', () => {
+    const r = spawnSync('node', [CLI, '--help'], { encoding: 'utf-8' });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('Usage:');
+    expect(r.stdout).toContain('create');
+    expect(r.stdout).toContain('list');
+    expect(r.stdout).toContain('show');
+    expect(r.stdout).toContain('skip');
+    expect(r.stdout).toContain('checkin-bot');
+    expect(r.stdout).toContain('carryover');
+  });
+
+  test('list command runs without error', () => {
+    // Note: jest's testEnvironment does not pass env vars to child processes
+    // by default, so we explicitly forward process.env to spawnSync. This lets
+    // the child CLI see CAPTURE_YOU_TEST_DB_PATH and read the test DB.
+    const r = spawnSync('node', [CLI, 'list'], { encoding: 'utf-8', env: process.env });
+    expect(r.status).toBe(0);
+  });
+});
