@@ -388,6 +388,14 @@ async function main() {
     return;
   }
 
+  // weekplan 命令
+  if (subcommand === 'weekplan' || subcommand === 'wp') {
+    const { spawn } = require('child_process');
+    const weekplanArgs = args.slice(1);
+    spawn('node', [require('path').join(__dirname, 'weekplan.js'), ...weekplanArgs], { stdio: 'inherit' });
+    return;
+  }
+
   // 收集输入
   const input = args.join(' ');
   if (!input) {
@@ -397,6 +405,7 @@ async function main() {
     console.log('  /capture-me profile   # 查看画像');
     console.log('  /capture-me stat     # 查看统计');
     console.log('  /capture-me review   # 生成复盘');
+    console.log('  /capture-me weekplan   # Week Plan 模式 (create/list/show/skip/checkin)');
     console.log('  /capture-me why <问题>  # 5 Why 追问');
     console.log('  /capture-me brainstorm # 头脑风暴');
     console.log('  /capture-me personality # 大五人格 + MBTI 分析');
