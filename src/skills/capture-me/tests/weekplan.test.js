@@ -226,3 +226,34 @@ describe('weekplan.addItem', () => {
     expect(full.items.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+const { checkinItem } = require('../lib/weekplan');
+
+describe('weekplan.checkinItem', () => {
+  test('inserts an update and updates item status', () => {
+    const plan = getOrCreateCurrentWeekPlan();
+    const itemId = addItem(plan.id, { title: 'checkin test item' });
+    checkinItem({
+      item_id: itemId,
+      plan_id: plan.id,
+      status_after: 'partial',
+      progress_note: '进展 50%',
+    });
+    const item = db.getWeekPlanItem(itemId);
+    expect(item.status).toBe('partial');
+    const latest = db.getLatestUpdateForItem(itemId);
+    expect(latest.progress_note).toBe('进展 50%');
+  });
+
+  test('progress_note is optional', () => {
+    const plan = getOrCreateCurrentWeekPlan();
+    const itemId = addItem(plan.id, { title: 'note-less checkin' });
+    checkinItem({
+      item_id: itemId,
+      plan_id: plan.id,
+      status_after: 'done',
+    });
+    const latest = db.getLatestUpdateForItem(itemId);
+    expect(latest.status_after).toBe('done');
+  });
+});

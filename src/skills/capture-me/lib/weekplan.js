@@ -74,9 +74,29 @@ function getPlanWithItems(planId) {
   return { plan, items };
 }
 
+/**
+ * 记录一次 check-in 更新。
+ * - 写入 week_plan_updates（不可变历史）
+ * - 同步更新 week_plan_items.status 到最新
+ * @param {object} args - { item_id, plan_id, status_after, progress_note?, source? }
+ * @returns {string} update id
+ */
+function checkinItem(args) {
+  const today = new Date().toISOString().split('T')[0];
+  return db.insertWeekPlanUpdate({
+    item_id: args.item_id,
+    plan_id: args.plan_id,
+    update_date: today,
+    status_after: args.status_after,
+    progress_note: args.progress_note || null,
+    source: args.source || 'cli',
+  });
+}
+
 module.exports = {
   getOrCreateCurrentWeekPlan,
   getCurrentWeekPlan,
   addItem,
   getPlanWithItems,
+  checkinItem,
 };
