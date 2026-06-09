@@ -1202,6 +1202,63 @@ function updateWeekPlanItem(id, fields) {
   db.close();
 }
 
+// ─── Week Plan Updates CRUD ─────────────────────────────────
+
+function generateUpdateId() {
+  return `wpu_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function insertWeekPlanUpdate(update) {
+  const db = new Database(DB_PATH);
+  const id = update.id || generateUpdateId();
+  const stmt = db.prepare(`
+    INSERT INTO week_plan_updates
+      (id, item_id, plan_id, update_date, status_after, progress_note, source)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  stmt.run(
+    id,
+    update.item_id,
+    update.plan_id,
+    update.update_date,
+    update.status_after,
+    update.progress_note || null,
+    update.source || 'cli'
+  );
+  // Also update the item's status
+  const itemStmt = db.prepare(`
+    UPDATE week_plan_items SET status = ?, updated_at = datetime('now') WHERE id = ?
+  `);
+  itemStmt.run(update.status_after, update.item_id);
+  db.close();
+  return id;
+}
+
+function getUpdatesForItem(itemId) {
+  const db = new Database(DB_PATH, { readonly: true });
+  const stmt = db.prepare(`
+    SELECT * FROM week_plan_updates
+    WHERE item_id = ?
+    ORDER BY update_date ASC, created_at ASC
+  `);
+  const updates = stmt.all(itemId);
+  db.close();
+  return updates;
+}
+
+function getLatestUpdateForItem(itemId) {
+  const db = new Database(DB_PATH, { readonly: true });
+  const stmt = db.prepare(`
+    SELECT * FROM week_plan_updates
+    WHERE item_id = ?
+    ORDER BY update_date DESC, created_at DESC
+    LIMIT 1
+  `);
+  const update = stmt.get(itemId);
+  db.close();
+  return update;
+}
+
 module.exports = {
   initDb,
   insertNote,
@@ -1268,6 +1325,10 @@ module.exports = {
   getWeekPlanItemsByStatus,
   updateWeekPlanItemStatus,
   updateWeekPlanItem,
+  // Week Plan Updates
+  insertWeekPlanUpdate,
+  getUpdatesForItem,
+  getLatestUpdateForItem,
 };
 
 // ─── Journey ─────────────────────────────────────────────────

@@ -122,3 +122,42 @@ describe('week_plan_items CRUD', () => {
     expect(items[0].status).toBe('done');
   });
 });
+
+describe('week_plan_updates CRUD', () => {
+  const sampleUpdate = {
+    id: 'wpu_test_001',
+    item_id: 'wpi_test_001',
+    plan_id: 'wp_2026_w24',
+    update_date: '2026-06-09',
+    status_after: 'partial',
+    progress_note: '进展 60%',
+    source: 'cli',
+  };
+
+  test('insertWeekPlanUpdate returns the id', () => {
+    const id = db.insertWeekPlanUpdate(sampleUpdate);
+    expect(id).toBe('wpu_test_001');
+  });
+
+  test('getLatestUpdateForItem returns the most recent', () => {
+    db.insertWeekPlanUpdate({
+      id: 'wpu_test_002',
+      item_id: 'wpi_test_001',
+      plan_id: 'wp_2026_w24',
+      update_date: '2026-06-10',
+      status_after: 'done',
+      progress_note: '完成',
+      source: 'cli',
+    });
+    const latest = db.getLatestUpdateForItem('wpi_test_001');
+    expect(latest.status_after).toBe('done');
+    expect(latest.update_date).toBe('2026-06-10');
+  });
+
+  test('getUpdatesForItem returns full history (chronological)', () => {
+    const updates = db.getUpdatesForItem('wpi_test_001');
+    expect(updates.length).toBe(2);
+    expect(updates[0].update_date).toBe('2026-06-09');
+    expect(updates[1].update_date).toBe('2026-06-10');
+  });
+});
