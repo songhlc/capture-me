@@ -6,6 +6,8 @@ const TEST_DB_DIR = path.join(os.tmpdir(), 'capture-me-weekplan-test-' + Date.no
 const TEST_DB_PATH = path.join(TEST_DB_DIR, 'test.db');
 process.env.CAPTURE_YOU_TEST_DB_PATH = TEST_DB_PATH;
 
+const db = require('../lib/db');
+
 beforeAll(() => {
   fs.mkdirSync(TEST_DB_DIR, { recursive: true });
   require('../lib/db').initDb();
@@ -55,5 +57,35 @@ describe('week plan — schema migration', () => {
     db.close();
     // The UNIQUE constraint creates an auto-index
     expect(idx.length).toBeGreaterThan(0);
+  });
+});
+
+describe('week_plans CRUD', () => {
+  const samplePlan = {
+    id: 'wp_2026_w24',
+    week_iso: '2026-W24',
+    year: 2026,
+    week_num: 24,
+    start_date: '2026-06-08',
+    end_date: '2026-06-12',
+    status: 'planning',
+  };
+
+  test('insertWeekPlan returns the id', () => {
+    const id = db.insertWeekPlan(samplePlan);
+    expect(id).toBe('wp_2026_w24');
+  });
+
+  test('getWeekPlan retrieves the inserted plan', () => {
+    const p = db.getWeekPlan('wp_2026_w24');
+    expect(p).toBeDefined();
+    expect(p.week_iso).toBe('2026-W24');
+    expect(p.status).toBe('planning');
+  });
+
+  test('updateWeekPlanStatus changes status', () => {
+    db.updateWeekPlanStatus('wp_2026_w24', 'active');
+    const p = db.getWeekPlan('wp_2026_w24');
+    expect(p.status).toBe('active');
   });
 });

@@ -1057,6 +1057,54 @@ if (require.main === module) {
   }
 }
 
+// ─── Week Plans CRUD ────────────────────────────────────────
+
+function insertWeekPlan(plan) {
+  const db = new Database(DB_PATH);
+  const stmt = db.prepare(`
+    INSERT INTO week_plans (id, week_iso, year, week_num, start_date, end_date, status, carryover_from_id, template_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  stmt.run(
+    plan.id,
+    plan.week_iso,
+    plan.year,
+    plan.week_num,
+    plan.start_date,
+    plan.end_date,
+    plan.status || 'planning',
+    plan.carryover_from_id || null,
+    plan.template_id || null
+  );
+  db.close();
+  return plan.id;
+}
+
+function getWeekPlan(id) {
+  const db = new Database(DB_PATH, { readonly: true });
+  const stmt = db.prepare('SELECT * FROM week_plans WHERE id = ?');
+  const plan = stmt.get(id);
+  db.close();
+  return plan;
+}
+
+function getWeekPlanByIso(weekIso) {
+  const db = new Database(DB_PATH, { readonly: true });
+  const stmt = db.prepare('SELECT * FROM week_plans WHERE week_iso = ?');
+  const plan = stmt.get(weekIso);
+  db.close();
+  return plan;
+}
+
+function updateWeekPlanStatus(id, status) {
+  const db = new Database(DB_PATH);
+  const stmt = db.prepare(`
+    UPDATE week_plans SET status = ?, updated_at = datetime('now') WHERE id = ?
+  `);
+  stmt.run(status, id);
+  db.close();
+}
+
 module.exports = {
   initDb,
   insertNote,
@@ -1111,6 +1159,11 @@ module.exports = {
   insertJourney,
   getJourneys,
   getJourneyStats,
+  // Week Plans
+  insertWeekPlan,
+  getWeekPlan,
+  getWeekPlanByIso,
+  updateWeekPlanStatus,
 };
 
 // ─── Journey ─────────────────────────────────────────────────
