@@ -113,7 +113,7 @@ function formatProjectDetail(project) {
   lines.push(`\x1b[36m║\x1b[0m  \x1b[1m📋 基本信息\x1b[0m${' '.repeat(35)}\x1b[36m║\x1b[0m`);
   lines.push(`\x1b[36m╠${border}╣\x1b[0m`);
   lines.push(`\x1b[36m║\x1b[0m  迭代版本：${project.iteration || '未设置'}\x1b[36m${' '.repeat(Math.max(0, 32))}║\x1b[0m`);
-  lines.push(`\x1b[36m║\x1b[0m  负责人：${project.assignees ? project.assignees.join('、') : '未指定'}\x1b[36m${' '.repeat(Math.max(0, 33))}║\x1b[0m`);
+  lines.push(`\x1b[36m║\x1b[0m  负责人：${project.assignees ? (Array.isArray(project.assignees) ? project.assignees.join('、') : project.assignees) : '未指定'}\x1b[36m${' '.repeat(Math.max(0, 33))}║\x1b[0m`);
   lines.push(`\x1b[36m║\x1b[0m  状态：${statusMap[project.status] || project.status}\x1b[36m${' '.repeat(Math.max(0, 30))}║\x1b[0m`);
 
   if (project.tasks || (project.progress_detail && project.progress_detail.tasks)) {

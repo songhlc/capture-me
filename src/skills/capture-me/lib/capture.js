@@ -418,6 +418,24 @@ async function main() {
     return;
   }
 
+  // ─── 未知子命令拦截 ─────────────────────────────────────
+  // 已知子命令白名单（与上方路由保持一致）
+  const KNOWN_SUBCOMMANDS = new Set([
+    'init', 'answer', 'cancel', 'mirror',
+    'brainstorm', 'why', 'personality', 'blindspot',
+    'trigger', 'external', 'health', 'dashboard',
+    'config', 'review', 'weekplan', 'wp',
+    // 以下为尚未实现但被文档/帮助提及的子命令 —— 同样应拦截避免误存
+    'profile', 'stat', 'projects', 'query', 'standup', 'observe'
+  ]);
+  if (KNOWN_SUBCOMMANDS.has(args[0])) {
+    console.log(`\n⚠️  未知子命令或路由未实现：「${args[0]}」\n`);
+    console.log('  这看起来像是想调用某个子命令，但路由没匹配上。');
+    console.log('  已知的子命令请看上方「用法」。\n');
+    console.log('  如果你想记录一条随手记，请直接输入内容（不要用子命令风格的第一个词）。\n');
+    return;
+  }
+
   // 首次使用检查
   if (!isSetupComplete()) {
     console.log('\n✨ 欢迎使用知己！');
