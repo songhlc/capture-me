@@ -2236,6 +2236,26 @@ type: project
 
 ### 2026/6/14
 
+> 今天要完成方案设计 — @capture — captured at 14:25
+
+> 测试 — @capture — captured at 14:25
+
+> 测试随手记 — @capture — captured at 14:25
+
+> 第二天日记内容 — @capture — captured at 14:25
+
+> 第一天日记内容 — @capture — captured at 14:25
+
+> 今天读完了《原子习惯》，学到一个好习惯的养成公式 — @capture — captured at 14:25
+
+> 今天天气很好，心情不错 — @capture — captured at 14:25
+
+> 下午和李总开会讨论Q2计划 — @capture — captured at 14:25
+
+> 项目Alpha已完成第一阶段开发 - proj-1781418309745 — @capture — captured at 14:25
+
+> 今天给张总发邮件确认合同 — @capture — captured at 14:25
+
 > 今天要完成方案设计 — @capture — captured at 14:13
 
 > 测试 — @capture — captured at 14:13

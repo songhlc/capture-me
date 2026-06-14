@@ -66,7 +66,30 @@
 - **写日记** — 每天随手记，AI 帮你整理成结构化日志
 - **记工作事项** — 站会内容、项目进展、临时需求，说完即存
 - **待办追踪** — 待办自动识别，同步 Apple Reminders
-- **周报生成** — 一句话生成周报，不用自己憋
+- **周计划工作流** — 周一定计划、每日 check-in、周五自动周报（见下一节）
+
+## 📅 周计划工作流（Week Plan）
+
+把"周一定计划 → 每日推进 → 周五出周报"做成一条自动流水线：
+
+- **周一早上 09:00** — 自动提醒你建本周计划
+- **每天下班前 18:00** — 自动来问一句"今天每个专项进展如何"
+- **周五下班前 17:30** — 自动生成本周周报，含完成度 / 阻塞项 / 各项摘要
+- **未完成项自动 carryover** — 周一一开新计划就把上周没干完的接过来
+
+> 设计哲学：周计划是"梳理表"，不是任务管理器 —— 只记**专项 / 优先级 / 负责人**，细节沉在各专项自己的数据里。
+
+### 怎么用
+
+首次使用 weekplan 时 Agent 会问你一句"是否注册 3 个定时任务"，同意即可。之后完全自动跑：
+
+| 时机 | Agent 自动执行 | 提醒方式 |
+|---|---|---|
+| 周一 09:00 | `weekplan checkin-bot --remind-create` | 推到你 Agent 已配置的通道 |
+| 工作日 18:00 | `weekplan checkin-bot --remind-update` | 同上 |
+| 周五 17:30 | `weekplan auto-report` | 同上 |
+
+**通知通道零配置** —— 自动复用你 Agent（OpenClaw / Hermes / ...）已对接的飞书 / 钉钉 / 通知中心，不需要重复填 token / webhook。
 
 ## 🔄 定期复盘
 
@@ -255,6 +278,8 @@ Codex:
 | `/capture-me dashboard` | 打开 Web 仪表盘 |
 | `/capture-me config [get\|set\|list]` | 配置管理 |
 | `/capture-me mirror` | 镜子状态/承诺追踪 |
+| `/capture-me weekplan [create\|show\|list\|add-item\|checkin\|carryover]` | 周计划工作流（创建 / 看 / 加专项 / 进展 check-in / 上周结转） |
+| `/capture-me weekplan setup` | 一次性注册周一/每日/周五 3 个定时提醒（首次使用 Agent 会自动询问） |
 
 ### 自动观察（OpenClaw + Claude Code + Codex + Hermes）
 
