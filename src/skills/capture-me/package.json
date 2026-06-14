@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "install-deps": "npm install",
-    "init": "node db.js init",
+    "init": "node lib/db.js init",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

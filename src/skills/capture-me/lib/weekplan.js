@@ -157,6 +157,79 @@ function generateCheckinMessage(planId) {
 }
 
 /**
+ * 周一 09:00 提醒：如本周未建 plan / 无 item，提示用户创建。
+ * @returns {string|null} 返回 null 表示无需提醒（已建好）
+ */
+function generateMondayReminder() {
+  const now = new Date();
+  const cur = getIsoWeek(now);
+  const existing = db.getWeekPlanByIso(cur.weekIso);
+  if (existing) {
+    const items = db.getWeekPlanItems(existing.id);
+    if (items.length > 0) return null;
+  }
+  return [
+    `📅 周一早安 — ${cur.weekIso} 本周计划还没建`,
+    '',
+    '回我："本周专项有 X / Y / Z" 即可，',
+    '或：weekplan create && weekplan add-item ...',
+  ].join('\n');
+}
+
+/**
+ * 工作日 18:00 提醒：让用户补齐当日各专项进展。
+ * @returns {string|null}
+ */
+function generateUpdateReminder() {
+  const cur = getCurrentWeekPlan();
+  if (!cur) {
+    return '⚠️ 本周还没有 week plan，先 `weekplan create` 再 add-item。';
+  }
+  const items = db.getWeekPlanItems(cur.id);
+  if (items.length === 0) {
+    return `⚠️ ${cur.week_iso} plan 是空的，先 add-item 才能 check-in。`;
+  }
+  return generateCheckinMessage(cur.id);
+}
+
+/**
+ * 周五 17:30 自动周报：本周完成度 + 各专项摘要 + 阻塞点。
+ * @returns {string}
+ */
+function generateAutoReport() {
+  const cur = getCurrentWeekPlan();
+  if (!cur) return '(本周未建 plan，无周报可生成)';
+  const { plan, items } = getPlanWithItems(cur.id);
+  if (items.length === 0) return `(${plan.week_iso} plan 没有 item)`;
+
+  const cnt = { done: 0, partial: 0, blocked: 0, pending: 0 };
+  for (const it of items) cnt[it.status] = (cnt[it.status] || 0) + 1;
+  const total = items.length;
+  const doneRate = Math.round(((cnt.done + cnt.partial * 0.5) / total) * 100);
+
+  const lines = [];
+  lines.push(`📋 周报 — ${plan.week_iso}（${plan.start_date} ~ ${plan.end_date}）`);
+  lines.push(`完成度 ${doneRate}% — ✅${cnt.done} 🚧${cnt.partial} ⛔${cnt.blocked} ⏳${cnt.pending}`);
+  lines.push('');
+  items.forEach((it, i) => {
+    const emoji = STATUS_EMOJI[it.status] || '·';
+    const pri = it.priority ? `[${it.priority}] ` : '';
+    lines.push(`${emoji} ${pri}${it.title}`);
+    const latest = db.getLatestUpdateForItem(it.id);
+    if (latest && latest.progress_note) {
+      lines.push(`   ↳ ${latest.progress_note}`);
+    }
+  });
+  const blocked = items.filter((it) => it.status === 'blocked');
+  if (blocked.length > 0) {
+    lines.push('');
+    lines.push('⛔ 阻塞项：');
+    blocked.forEach((it) => lines.push(`   • ${it.title}`));
+  }
+  return lines.join('\n');
+}
+
+/**
  * 获取或创建指定 ISO 周的 plan（用于测试和 carryover）。
  * @param {number} year
  * @param {number} weekNum
@@ -237,6 +310,9 @@ module.exports = {
   checkinItem,
   renderPlan,
   generateCheckinMessage,
+  generateMondayReminder,
+  generateUpdateReminder,
+  generateAutoReport,
   carryoverFromLastWeek,
 };
 
@@ -249,7 +325,11 @@ if (require.main === module) {
     console.log(`Usage: node lib/weekplan.js <command> [args]
 
 Commands:
-  create                   Create a new week plan for the current ISO week (interactive)
+  create [--next | <year> <week>]
+                           Create a week plan.
+                           (no args)     current ISO week
+                           --next        next ISO week (today + 7 days)
+                           <year> <week> specific week, e.g. 'create 2026 25'
   list                     List all week plans
   show [week_iso]          Show a specific week's plan (default: current)
   skip [week_iso]          Mark a week as skipped (vacation/OOO)
@@ -257,7 +337,14 @@ Commands:
                            Add an item to an existing plan
   checkin <item_id> <status> [--note "..."]
                            Record a check-in update for an item
-  checkin-bot [plan_id]    Print the check-in message (PR1: terminal only)
+  checkin-bot [--remind-create | --remind-update] [--send] [plan_id]
+                           Print (or push via notify) a check-in message.
+                           --remind-create  周一 09:00 提示创建本周计划
+                           --remind-update  工作日 18:00 提示补齐进展（默认）
+                           --send           走 notify 通道（默认 stdout）
+  auto-report [--send]     Generate this week's report (周五 17:30 用)
+  setup [--check|--remove] Register/check/remove launchd cron jobs
+                           (周一 09:00 创建 / 工作日 18:00 进展 / 周五 17:30 周报)
   carryover [year] [week]  Copy unfinished items from last week (default: current week)
   render [plan_id]         Render a plan as readable text
 
@@ -274,7 +361,17 @@ Run 'node lib/weekplan.js <command> --help' for command-specific help.
 
   try {
     if (cmd === 'create') {
-      const plan = getOrCreateCurrentWeekPlan();
+      let plan;
+      if (rest[0] === '--next') {
+        const nextDay = new Date();
+        nextDay.setDate(nextDay.getDate() + 7);
+        const next = getIsoWeek(nextDay);
+        plan = getOrCreateWeekPlan(next.year, next.weekNum);
+      } else if (rest.length >= 2 && /^\d+$/.test(rest[0]) && /^\d+$/.test(rest[1])) {
+        plan = getOrCreateWeekPlan(parseInt(rest[0], 10), parseInt(rest[1], 10));
+      } else {
+        plan = getOrCreateCurrentWeekPlan();
+      }
       console.log(`✓ Plan created/exists: ${plan.id}`);
       console.log(`  week_iso: ${plan.week_iso}`);
       console.log(`  dates: ${plan.start_date} ~ ${plan.end_date}`);
@@ -354,8 +451,71 @@ Run 'node lib/weekplan.js <command> --help' for command-specific help.
       });
       console.log(`✓ Check-in recorded: ${itemId} → ${status}`);
     } else if (cmd === 'checkin-bot') {
-      const planId = rest[0] || getOrCreateCurrentWeekPlan().id;
-      console.log(generateCheckinMessage(planId));
+      const send = rest.includes('--send');
+      const wantCreate = rest.includes('--remind-create');
+      let msg;
+      if (wantCreate) {
+        msg = generateMondayReminder();
+        if (msg == null) {
+          if (!send) console.log('(本周计划已建好，无需提醒)');
+          process.exit(0);
+        }
+      } else {
+        // 默认或显式 --remind-update
+        const positional = rest.filter((a) => !a.startsWith('--'));
+        const planId = positional[0];
+        if (planId) {
+          msg = generateCheckinMessage(planId);
+        } else {
+          msg = generateUpdateReminder();
+        }
+      }
+      if (send) {
+        const { notify } = require('./notify');
+        notify(msg, { title: 'weekplan' });
+      } else {
+        console.log(msg);
+      }
+    } else if (cmd === 'auto-report') {
+      const msg = generateAutoReport();
+      if (rest.includes('--send')) {
+        const { notify } = require('./notify');
+        notify(msg, { title: 'weekplan 周报' });
+      } else {
+        console.log(msg);
+      }
+    } else if (cmd === 'setup') {
+      const setupCron = require('./setup-cron');
+      if (rest.includes('--check')) {
+        const r = setupCron.check();
+        if (r.ok) {
+          console.log('✓ 3 个定时任务都已注册');
+        } else {
+          console.log(`missing: ${r.missing.length} / 3`);
+          r.missing.forEach((l) => console.log(`  - ${l}`));
+          process.exit(2); // 非零退出码方便脚本判断
+        }
+      } else if (rest.includes('--remove')) {
+        const results = setupCron.uninstall();
+        results.forEach((r) =>
+          console.log(`${r.removed ? '✓ removed' : '· not present'}: ${r.label}`)
+        );
+      } else {
+        const { detectChannel } = require('./notify');
+        const ch = detectChannel();
+        console.log(`🔍 通知通道：${ch.kind} (${ch.source})`);
+        const results = setupCron.install();
+        console.log('📅 已注册定时任务：');
+        results.forEach((r) => {
+          const tag = r.ok ? '✓' : '✗';
+          console.log(`  ${tag} ${r.label}${r.error ? ' — ' + r.error : ''}`);
+        });
+        const failed = results.filter((r) => !r.ok);
+        if (failed.length > 0) process.exit(1);
+        console.log('');
+        console.log('卸载：node lib/weekplan.js setup --remove');
+        console.log('查看：node lib/weekplan.js setup --check');
+      }
     } else if (cmd === 'carryover') {
       const year = rest[0] ? parseInt(rest[0], 10) : null;
       const week = rest[1] ? parseInt(rest[1], 10) : null;

@@ -157,6 +157,41 @@ AI摘要：近期身体状态不佳
 | `projects [状态]` | 查看项目列表（active/paused/all） |
 | `projects export` | 导出项目列表到 Markdown |
 | `weekplan [create\|list\|show\|skip\|checkin]` | Week Plan 模式（周一规划、每日 check-in、自动 carryover）|
+| `weekplan setup` | 一次性注册 3 个 launchd 定时任务（周一09:00 创建 / 工作日18:00 进展 / 周五17:30 周报） |
+
+---
+
+## ⚠️ Agent 行为约定：首次使用 weekplan 自动注册定时任务
+
+任何 Agent（Claude Code / OpenClaw / Hermes / Codex / ...）在用户**首次**调用 `weekplan` 任意子命令时，**必须**先执行：
+
+```bash
+node lib/weekplan.js setup --check
+```
+
+若退出码 ≠ 0（缺定时任务），Agent **必须主动询问**：
+
+> "检测到 weekplan 还没注册定时任务，是否要自动注册？
+>  · 周一 09:00 — 提醒创建本周计划
+>  · 工作日 18:00 — 提醒补齐专项进展
+>  · 周五 17:30 — 自动生成本周周报
+>  消息出口会自动复用你当前 Agent 的通知通道（飞书/钉钉/Apple Reminders，按平台探测）。"
+
+用户同意后执行：
+
+```bash
+node lib/weekplan.js setup
+```
+
+**通知通道探测顺序**（zero-config）：
+1. `$WEEKPLAN_NOTIFY_CMD` / `$OPENCLAW_NOTIFY_CMD` / `$HERMES_NOTIFY_CMD`（命令模板，用 `{msg}` 占位）
+2. PATH 中的 `openclaw notify` / `hermes notify`
+3. `terminal-notifier` / `osascript`（macOS）
+4. stdout 兜底
+
+Agent 不应让用户填写飞书 token / webhook —— 通道复用 Agent 平台已有的对接。
+
+如需卸载：`node lib/weekplan.js setup --remove`。
 
 ---
 
