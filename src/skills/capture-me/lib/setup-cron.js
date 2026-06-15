@@ -1,10 +1,11 @@
 /**
  * setup-cron.js — macOS launchd 注册/卸载/状态查询
  *
- * 三个定时任务：
+ * 四个定时任务：
  *   1. 周一 09:00         → checkin-bot --remind-create --send
  *   2. 工作日 18:00        → checkin-bot --remind-update --send
  *   3. 周五 17:30          → auto-report --send
+ *   4. 工作日 09:00        → dispatch.js check-reminders (保险管家)
  *
  * launchd Weekday: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0/7=Sun
  *
@@ -18,11 +19,11 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 
-const LABEL_PREFIX = 'me.capture.weekplan';
+const LABEL_PREFIX = 'me.capture';
 const HOME = os.homedir();
 const DEFAULT_PLIST_DIR = path.join(HOME, 'Library/LaunchAgents');
 const LOG_DIR = path.join(HOME, '.claude/skills/capture-me/logs');
-const WEEKPLAN_JS = path.resolve(__dirname, 'weekplan.js');
+const DISPATCH_JS = path.resolve(__dirname, '..', 'bin', 'dispatch.js');
 const NODE_BIN = process.execPath;
 
 function plistDir() {
@@ -35,22 +36,29 @@ function isDryRun() {
 
 const TASKS = [
   {
-    label: `${LABEL_PREFIX}.monday-create`,
+    label: `${LABEL_PREFIX}.weekplan-monday-create`,
     desc: '周一 09:00 提醒创建本周计划',
     args: ['checkin-bot', '--remind-create', '--send'],
     schedule: [{ Weekday: 1, Hour: 9, Minute: 0 }],
   },
   {
-    label: `${LABEL_PREFIX}.daily-checkin`,
+    label: `${LABEL_PREFIX}.weekplan-daily-checkin`,
     desc: '工作日 18:00 提醒补齐进展',
     args: ['checkin-bot', '--remind-update', '--send'],
     schedule: [1, 2, 3, 4, 5].map((d) => ({ Weekday: d, Hour: 18, Minute: 0 })),
   },
   {
-    label: `${LABEL_PREFIX}.friday-report`,
+    label: `${LABEL_PREFIX}.weekplan-friday-report`,
     desc: '周五 17:30 自动生成本周周报',
     args: ['auto-report', '--send'],
     schedule: [{ Weekday: 5, Hour: 17, Minute: 30 }],
+  },
+  // ─── Insurance（新）───
+  {
+    label: `${LABEL_PREFIX}.insurance-reminder`,
+    desc: '工作日 09:00 检查续保/到期保单',
+    args: ['check-reminders'],
+    schedule: [1, 2, 3, 4, 5].map((d) => ({ Weekday: d, Hour: 9, Minute: 0 })),
   },
 ];
 
@@ -65,7 +73,7 @@ function calXml(cal) {
 }
 
 function plistFor(task) {
-  const argXml = [NODE_BIN, WEEKPLAN_JS, ...task.args]
+  const argXml = [NODE_BIN, DISPATCH_JS, ...task.args]
     .map((a) => `    <string>${escapeXml(a)}</string>`)
     .join('\n');
 
@@ -165,7 +173,7 @@ function uninstall() {
 }
 
 /**
- * 检查 3 个 plist 是否都已注册。
+ * 检查 4 个 plist 是否都已注册。
  * @returns {{ ok: boolean, missing: string[], present: string[], tasks: object[] }}
  */
 function check() {

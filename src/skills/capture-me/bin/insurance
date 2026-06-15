@@ -1,0 +1,4 @@
+#!/bin/bash
+# bin/insurance — 保险管家 CLI 入口
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+exec node "$DIR/lib/insurance/cli.js" "$@"

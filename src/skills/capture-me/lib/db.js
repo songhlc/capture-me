@@ -282,6 +282,98 @@ function initDb() {
     );
   `);
 
+  // ─── Insurance Manager 模块表 ────────────────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS family_members (
+      member_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      relation TEXT NOT NULL,
+      birth_year INTEGER,
+      health_disclosure TEXT,
+      risk_profile TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS insurance_policies (
+      policy_id TEXT PRIMARY KEY,
+      family_member_id TEXT NOT NULL,
+      policy_holder_id TEXT,
+      beneficiary_ids TEXT,
+      category TEXT NOT NULL,
+      insurer TEXT,
+      product_name TEXT,
+      policy_number TEXT,
+      sum_insured REAL,
+      annual_premium REAL,
+      payment_method TEXT,
+      payment_period TEXT,
+      coverage_period TEXT,
+      start_date TEXT,
+      end_date TEXT,
+      next_renewal_date TEXT,
+      sales_channel TEXT,
+      sales_contact TEXT,
+      cash_value_path TEXT,
+      health_disclosure_summary TEXT,
+      waiting_period_end TEXT,
+      guaranteed_renewable INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'active',
+      raw_text TEXT,
+      ai_summary TEXT,
+      tags TEXT,
+      source TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (family_member_id) REFERENCES family_members(member_id),
+      FOREIGN KEY (policy_holder_id) REFERENCES family_members(member_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_policies_member ON insurance_policies(family_member_id);
+    CREATE INDEX IF NOT EXISTS idx_policies_holder ON insurance_policies(policy_holder_id);
+    CREATE INDEX IF NOT EXISTS idx_policies_category ON insurance_policies(category);
+    CREATE INDEX IF NOT EXISTS idx_policies_renewal ON insurance_policies(next_renewal_date);
+    CREATE INDEX IF NOT EXISTS idx_policies_status ON insurance_policies(status);
+    CREATE INDEX IF NOT EXISTS idx_policies_channel ON insurance_policies(sales_channel);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cash_assets (
+      asset_id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      account_alias TEXT,
+      balance REAL,
+      currency TEXT DEFAULT 'CNY',
+      as_of_date TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS insurance_claims (
+      claim_id TEXT PRIMARY KEY,
+      policy_id TEXT NOT NULL,
+      claim_date TEXT,
+      claim_reason TEXT,
+      claim_amount REAL,
+      status TEXT NOT NULL,
+      paid_amount REAL,
+      paid_date TEXT,
+      rejection_reason TEXT,
+      notes TEXT,
+      raw_text TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (policy_id) REFERENCES insurance_policies(policy_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_claims_policy ON insurance_claims(policy_id);
+    CREATE INDEX IF NOT EXISTS idx_claims_date ON insurance_claims(claim_date);
+    CREATE INDEX IF NOT EXISTS idx_claims_status ON insurance_claims(status);
+  `);
+
   db.close();
   console.log('✓ 数据库初始化完成:', DB_PATH);
 }

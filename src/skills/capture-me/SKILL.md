@@ -1,8 +1,8 @@
 ---
 name: capture-me
-description: 习惯养成 → 定期复盘 → 自我提升：自然语言随手记，AI 解析存储，成长追踪
+description: 习惯养成 → 定期复盘 → 自我提升：自然语言随手记，AI 解析存储，成长追踪；以及家庭保险管家（保单/现金/理赔结构化录入、双十+家庭风险矩阵缺口分析、续保提醒、家庭体检报告含免责声明）
 user-invocable: true
-argument-hint: "[init|note|query|review|profile|stat|projects] [内容]"
+argument-hint: "[init|note|query|review|profile|stat|projects|insurance] [内容]"
 ---
 
 
@@ -51,7 +51,7 @@ argument-hint: "[init|note|query|review|profile|stat|projects] [内容]"
 
 ## 数据存储
 
-随手记（notes）SQLite + Markdown 双写；项目（projects）SQLite 唯一源。完整 schema 与 Markdown 文件格式见 `references/data-model.md`。
+随手记（notes）SQLite + Markdown 双写；项目（projects）SQLite 唯一源。**保险管家**新增 4 张表：`family_members`（家庭成员，投保人/被保人/受益人共用一张表，**三方角色独立 FK**）、`insurance_policies`（保单，含 sales_contact 防止孤儿单）、`cash_assets`（现金/应急资产，含 `personal_pension` 个人养老金账户）、`insurance_claims`（理赔记录，状态机 submitted → under_review → approved → paid / rejected）。完整 schema 与 Markdown 文件格式见 `references/data-model.md`。
 
 ## 核心命令
 
@@ -69,6 +69,12 @@ argument-hint: "[init|note|query|review|profile|stat|projects] [内容]"
 | `projects export` | 导出项目列表到 Markdown |
 | `weekplan [create\|list\|show\|skip\|checkin]` | Week Plan 模式（周一规划、每日 check-in、自动 carryover）|
 | `weekplan setup` | 一次性注册 3 个 launchd 定时任务（周一09:00 创建 / 工作日18:00 进展 / 周五17:30 周报） |
+| `insurance add-policy` | 录入保单（对话 + 结构化，**三方角色独立识别**） |
+| `insurance add-cash` | 录入现金/应急资产（含 `personal_pension` 个人养老金账户） |
+| `insurance add-claim` | 录入理赔记录（与保单关联；拒赔记录标红） |
+| `insurance query` / `renewals` | 查保单库 / 查 60/30/7 天内续保/到期 |
+| `insurance gap` / `report` | 单独跑缺口分析 / 体检报告（**双十 + 家庭风险矩阵**两套并行 + 免责声明） |
+| `insurance setup` | 注册 1 个 launchd 定时任务（工作日 09:00 检查续保/到期） |
 
 ---
 
@@ -103,6 +109,66 @@ node lib/weekplan.js setup
 Agent 不应让用户填写飞书 token / webhook —— 通道复用 Agent 平台已有的对接。
 
 如需卸载：`node lib/weekplan.js setup --remove`。
+
+---
+
+## 保险管家（Insurance Manager）
+
+保单结构化录入 / 家庭体检报告 / 续保提醒 / 缺口分析（双十 + 家庭风险矩阵）。
+
+### 触发词
+- `/capture-me insurance add-policy` — 录入保单
+- `/capture-me insurance add-cash` — 录入现金/应急资产
+- `/capture-me insurance add-claim` — 录入理赔
+- `/capture-me insurance query` / `renewals` — 查询
+- `/capture-me insurance gap` / `report` — 缺口分析 / 体检报告
+- `/capture-me insurance check-reminders` — 跑提醒（cron 自动）
+
+### 数据模型
+4 张表（`family_members` / `insurance_policies` / `cash_assets` / `insurance_claims`） + 9 个索引。
+
+**三方角色独立 FK**：`family_member_id`（被保人） / `policy_holder_id`（投保人） / `beneficiary_ids`（受益人 JSON 数组）。
+
+### 解析模式
+- 录入时由 Agent 在对话中调 LLM 解析为 JSON（`buildParsePrompt` 提供 prompt 模板）
+- 脚本侧只做 `validateParsedPolicy` 校验 + 规范化
+- 缺啥问啥，逐项对话补齐；不阻塞录入
+- **健康告知是理赔拒赔主因（国内 60% 拒赔由此导致），必须主动询问**
+
+### 缺口分析方法论
+两套规则并行（取较大值）：
+- **双十法则**：寿险 = 收入 × 10 + 房贷；重疾 = 年支出 × 5 × 1.2；意外 = 收入 × 10
+- **家庭风险矩阵**：在双十基础上加职业系数（高风险 1.5x）、保证续保判定、应急金 6-12 个月
+
+### 体检报告
+6 段输出（A 资产 / B 险种覆盖 / C 建议 / D 缺口 / E 理赔 / F LLM 个性化），**必含合规章节**。
+
+报告落盘：`memory/insurance-reports/YYYY-MM-DD-体检.md`。
+
+### 续保/到期提醒
+- 工作日 09:00 跑 `insurance check-reminders`
+- 7/30/60 天三档窗口
+- 7 天内保单**强制**带"建议提前 3 天确认绑定银行卡余额"提示
+- 通知走 `lib/notify.js` 复用 weekplan 通道
+
+### 孤儿单
+`insurance_policies.sales_contact` 缺失的保单在体检报告中标"⚠️ 孤儿单 — 断缴或理赔时风险大"。
+
+### ⚠️ Agent 行为约定：首次使用 insurance 自动注册定时任务
+
+任何 Agent 在用户**首次**调用 `insurance` 任意子命令时，**必须**先执行：
+
+```bash
+node lib/weekplan.js setup --check
+```
+
+（`lib/weekplan.js setup` 在 v1 保险管家合并后已统一调度 4 个 launchd 任务，包括本 skill 的工作日 09:00 续保/到期检查。）
+
+若退出码 ≠ 0（缺定时任务），Agent **必须主动询问**用户是否要自动注册，并在同意后执行：
+
+```bash
+node lib/weekplan.js setup
+```
 
 ---
 

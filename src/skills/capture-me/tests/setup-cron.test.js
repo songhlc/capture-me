@@ -27,18 +27,18 @@ describe('setup-cron (DRY_RUN)', () => {
   test('check() returns missing before install', () => {
     const r = setupCron.check();
     expect(r.ok).toBe(false);
-    expect(r.missing.length).toBe(3);
+    expect(r.missing.length).toBe(4);
     expect(r.present.length).toBe(0);
   });
 
-  test('install() writes 3 plists', () => {
+  test('install() writes 4 plists (3 weekplan + 1 insurance-reminder)', () => {
     const results = setupCron.install();
-    expect(results).toHaveLength(3);
+    expect(results).toHaveLength(4);
     expect(results.every((r) => r.ok)).toBe(true);
     expect(results.every((r) => r.dryRun)).toBe(true);
 
     const files = fs.readdirSync(tmpDir).sort();
-    expect(files).toHaveLength(3);
+    expect(files).toHaveLength(4);
     expect(files.every((f) => f.endsWith('.plist'))).toBe(true);
   });
 
@@ -57,7 +57,16 @@ describe('setup-cron (DRY_RUN)', () => {
     const r = setupCron.check();
     expect(r.ok).toBe(true);
     expect(r.missing).toHaveLength(0);
-    expect(r.present).toHaveLength(3);
+    expect(r.present).toHaveLength(4);
+  });
+
+  test('insurance-reminder plist uses 5 Weekday entries (Mon-Fri 09:00)', () => {
+    const insTask = setupCron.TASKS.find((t) => t.label.endsWith('insurance-reminder'));
+    expect(insTask).toBeDefined();
+    const xml = fs.readFileSync(setupCron._pathOf(insTask), 'utf8');
+    const weekdayMatches = xml.match(/<key>Weekday<\/key>/g) || [];
+    expect(weekdayMatches.length).toBe(5);
+    expect(xml).toMatch(/<key>Hour<\/key>\s*<integer>9<\/integer>/);
   });
 
   test('monday plist uses Weekday=1 Hour=9', () => {
