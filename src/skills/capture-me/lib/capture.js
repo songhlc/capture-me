@@ -396,6 +396,14 @@ async function main() {
     return;
   }
 
+  // progress-confirm 命令
+  if (subcommand === 'progress-confirm' || subcommand === 'pc') {
+    const { spawn } = require('child_process');
+    const pcArgs = args.slice(1);
+    spawn('node', [require('path').join(__dirname, 'progress-confirm', 'cli.js'), ...pcArgs], { stdio: 'inherit' });
+    return;
+  }
+
   // 收集输入
   const input = args.join(' ');
   if (!input) {
@@ -406,6 +414,7 @@ async function main() {
     console.log('  /capture-me stat     # 查看统计');
     console.log('  /capture-me review   # 生成复盘');
     console.log('  /capture-me weekplan   # Week Plan 模式 (create/list/show/skip/checkin)');
+    console.log('  /capture-me progress-confirm   # 周度进展确认 (scan/parse/apply/migrate)');
     console.log('  /capture-me why <问题>  # 5 Why 追问');
     console.log('  /capture-me brainstorm # 头脑风暴');
     console.log('  /capture-me personality # 大五人格 + MBTI 分析');
@@ -425,6 +434,7 @@ async function main() {
     'brainstorm', 'why', 'personality', 'blindspot',
     'trigger', 'external', 'health', 'dashboard',
     'config', 'review', 'weekplan', 'wp',
+    'progress-confirm', 'pc',
     // 以下为尚未实现但被文档/帮助提及的子命令 —— 同样应拦截避免误存
     'profile', 'stat', 'projects', 'query', 'standup', 'observe'
   ]);

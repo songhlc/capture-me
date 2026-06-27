@@ -1,11 +1,14 @@
 /**
  * setup-cron.js — macOS launchd 注册/卸载/状态查询
  *
- * 四个定时任务：
+ * 四个 launchd 定时任务 + 1 个 OpenClaw cron 记录：
  *   1. 周一 09:00         → checkin-bot --remind-create --send
  *   2. 工作日 18:00        → checkin-bot --remind-update --send
  *   3. 周五 17:30          → auto-report --send
  *   4. 工作日 09:00        → dispatch.js check-reminders (保险管家)
+ *
+ * 下面是 OpenClaw cron 任务（不在 launchd 里）：
+ *   5. 周五 17:00          → OpenClaw agent turn → weekly-progress-confirm
  *
  * launchd Weekday: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0/7=Sun
  *
@@ -61,6 +64,12 @@ const TASKS = [
     schedule: [1, 2, 3, 4, 5].map((d) => ({ Weekday: d, Hour: 9, Minute: 0 })),
   },
 ];
+
+// ─── OpenClaw cron 任务（不在 launchd 里）────────────────
+//   5. 周五 17:00  → weekly-progress-confirm
+//   由 OpenClaw cron 配置触发（见 ~/.openclaw/workspace/memory/cron-config.md）
+//   范式：sessionTarget="isolated" + payload.kind="agentTurn" + delivery.mode="none"
+//   agent turn 内部调 capture-me progress-confirm scan/parse/apply
 
 function calXml(cal) {
   return [
